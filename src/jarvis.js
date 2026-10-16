@@ -1,5 +1,9 @@
-// Hand control client. Talks to jarvis.py over a local WebSocket and turns what it
-// sends (hand points and gesture commands) into viewer actions.
+// Hand control client. Gets hand points and gesture commands from one of two sources and
+// turns them into viewer actions:
+//   - "Python": jarvis.py on your own computer, reached over a local WebSocket
+//   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
+import { BrowserTracker } from './handcam.js';
+
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
   [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
@@ -13,15 +17,18 @@ export function initJarvis({ stage, app, $ }) {
   const help = $('#jarvis-help');
   const pip = $('#jarvis-pip');
   const pipMode = $('#pip-mode');
+  const pipSrc = $('#pip-src');
   const reticle = $('#reticle');
   const cv = pip.querySelector('canvas');
   const g = cv.getContext('2d');
-  // Only the copy served by jarvis.py (http://localhost) may connect; it rejects every other origin.
+  // Page served by jarvis.py (or any localhost server): try the Python script first.
   const local = location.protocol === 'http:' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 
   let ws = null;
+  let tracker = null;
   let state = 'idle'; // idle | connecting | running
   let lastMode = '';
+  let lastShown = '';
   let pending = null; // newest hand frame, drawn once per animation frame (stale ones are dropped)
   let raf = 0;
   let nframe = 0;
@@ -29,59 +36,114 @@ export function initJarvis({ stage, app, $ }) {
 
   const say = (t) => { status.textContent = t; };
 
-  function setState(s) {
+  function setState(s, src = '') {
     state = s;
     const on = s !== 'idle';
     btn.setAttribute('aria-pressed', String(on));
     btn.textContent = s === 'idle' ? 'Start hand control' : s === 'connecting' ? 'Starting…' : 'Stop hand control';
     app.classList.toggle('jarvis', s === 'running');
     pip.hidden = s !== 'running';
+    pipSrc.textContent = src ? (src === 'python' ? 'Python script' : 'this browser') : '';
     if (s !== 'running') { reticle.classList.remove('on', 'pinch'); stage._hoverAt = null; }
   }
 
+  const HELP = {
+    remote: {
+      title: 'Open the served copy for hand control',
+      body: 'Hand control needs a page that can use your camera: the deployed site, or this viewer served by the Python script on your own computer.',
+      steps: true,
+    },
+    embedded: {
+      title: 'Hand control cannot run in a preview',
+      body: 'Embedded previews block the camera. Open the deployed site in its own tab, or run the Python script on your computer.',
+      steps: true,
+    },
+    insecure: {
+      title: 'The camera needs a secure page',
+      body: 'Browsers only allow camera access on https pages or on localhost. Open the site over https (Render provides this), or run the Python script locally.',
+      steps: true,
+    },
+    denied: {
+      title: 'Camera access is blocked',
+      body: 'Allow the camera for this site (the camera icon in the address bar, or the browser’s site settings), then press Start again.',
+    },
+    nocamera: {
+      title: 'No camera found',
+      body: 'Plug in or enable a webcam, close other apps that use it, then press Start again.',
+    },
+    load: {
+      title: 'Hand tracking could not load',
+      body: 'The hand model comes from Google’s storage and the tracking runtime from this site. Check your connection and that the site was built with `npm run build`, then try again.',
+    },
+    error: { title: 'The camera could not start', body: '' },
+  };
+
   function showHelp(kind, message) {
-    const title = $('#jarvis-help-title');
-    const body = $('#jarvis-help-body');
-    if (kind === 'error') {
-      title.textContent = 'The camera could not start';
-      body.textContent = message || 'Check that no other app is using the camera.';
-      $('#jarvis-help-steps').hidden = true;
-    } else {
-      title.textContent = kind === 'remote' ? 'Hand control runs from the local copy' : 'Start the hand-tracking script first';
-      body.textContent = kind === 'remote'
-        ? 'A web page cannot open your camera into Python by itself. Run the script on your computer; it serves this viewer at http://localhost:8765 with the Start button connected.'
-        : 'The page could not reach the script. Run these two commands in a terminal, then click Start again in the page it opens.';
-      $('#jarvis-help-steps').hidden = false;
-    }
+    const h = HELP[kind] || HELP.error;
+    $('#jarvis-help-title').textContent = h.title;
+    $('#jarvis-help-body').textContent = h.body || message || 'Check that no other app is using the camera.';
+    $('#jarvis-help-steps').hidden = !h.steps;
     help.hidden = false;
   }
 
   function end() {
     if (ws) { try { ws.close(); } catch { /* already closed */ } }
     ws = null;
+    if (tracker) { tracker.stop(); tracker = null; }
     setState('idle');
     say('');
   }
 
-  function start() {
+  // ───── sources ─────
+  // Python script over WebSocket. Resolves true once connected, false if nothing answers.
+  function tryPython() {
+    return new Promise((resolve) => {
+      let opened = false;
+      try { ws = new WebSocket(`ws://${location.host}/ws`); } catch { resolve(false); return; }
+      ws.onopen = () => {
+        opened = true;
+        ws.send(JSON.stringify({ type: 'start' }));
+        say('Opening the camera…');
+        resolve(true);
+      };
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(ev.data);
+          if (m.type === 'frame') queueFrame(m); else handle(m, 'python'); // commands are never dropped
+        } catch { /* ignore a malformed message */ }
+      };
+      ws.onclose = () => { ws = null; if (!opened) resolve(false); else if (state !== 'idle') { end(); } };
+    });
+  }
+
+  async function startBrowser() {
+    tracker = new BrowserTracker({
+      onMessage: (m) => { if (m.type === 'frame') queueFrame(m); else handle(m, 'browser'); },
+      onStatus: say,
+    });
+    try {
+      await tracker.start();
+      setState('running', 'browser');
+      say('Show your hands.');
+    } catch (e) {
+      const kind = e.kind || 'error';
+      end();
+      showHelp(kind, e.message);
+    }
+  }
+
+  async function start() {
     help.hidden = true;
-    if (!local) { showHelp('remote'); return; }
+    if (location.protocol === 'file:') { showHelp('remote'); return; }
+    if (window.top !== window.self) { showHelp('embedded'); return; }
     setState('connecting');
     say('Connecting…');
-    let opened = false;
-    try {
-      ws = new WebSocket(`ws://${location.host}/ws`);
-    } catch {
-      end(); showHelp('noscript'); return;
+    if (local) {
+      say('Looking for jarvis.py…');
+      if (await tryPython()) return; // the script answers; it reports "running" itself
     }
-    ws.onopen = () => { opened = true; ws.send(JSON.stringify({ type: 'start' })); say('Opening the camera…'); };
-    ws.onmessage = (ev) => {
-      try {
-        const m = JSON.parse(ev.data);
-        if (m.type === 'frame') queueFrame(m); else handle(m); // commands are never dropped, frames can be
-      } catch { /* ignore a malformed message */ }
-    };
-    ws.onclose = () => { const was = state; end(); if (!opened && was === 'connecting') showHelp('noscript'); };
+    if (state !== 'connecting') return; // stopped while waiting
+    await startBrowser();
   }
 
   function stop() {
@@ -97,7 +159,7 @@ export function initJarvis({ stage, app, $ }) {
     setTimeout(() => { b.textContent = 'Copy commands'; }, 1600);
   });
 
-  // ───── messages from the script ─────
+  // ───── messages from either source ─────
   function queueFrame(m) {
     pending = m;
     if (raf) return;
@@ -108,10 +170,10 @@ export function initJarvis({ stage, app, $ }) {
     return { x: r.left + clamp(nx, 0, 1) * r.width, y: r.top + clamp(ny, 0, 1) * r.height };
   }
 
-  function handle(m) {
+  function handle(m, src) {
     switch (m.type) {
       case 'status':
-        if (m.state === 'running') { setState('running'); say(m.message || 'Show your hands.'); }
+        if (m.state === 'running') { setState('running', src); say(m.message || 'Show your hands.'); }
         else if (m.state === 'starting') { say(m.message || 'Opening the camera…'); }
         else if (m.state === 'error') { end(); showHelp('error', m.message); }
         else if (m.state === 'stopped' && state !== 'idle') { end(); }
@@ -162,9 +224,10 @@ export function initJarvis({ stage, app, $ }) {
     const n = m.hands.length;
     if (n) stage.lastInput = stage.time; // hands in view: keep auto-orbit paused
     const label = m.mode === 'two' ? 'two hands' : n === 1 ? 'one hand' : 'no hands';
+    const shown = m.fps ? `${label} · ${m.fps} fps` : label;
+    if (shown !== lastShown) { lastShown = shown; pipMode.textContent = shown; }
     if (label !== lastMode) {
       lastMode = label;
-      pipMode.textContent = label;
       say(m.mode === 'two' ? 'Two hands: pull apart or push together' : n === 1 ? 'One hand: pinch to grab or click' : 'Show your hands');
     }
     nframe++;

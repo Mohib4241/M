@@ -11,14 +11,7 @@ Open `dist/index.html` in a browser. It is a single self-contained file (Three.j
 
 ## Hand control (Jarvis mode)
 
-Move the robots with your hands, from your webcam. A web page cannot open your camera into Python by itself, so the Python script runs the tracking and serves the viewer; the page's **Start hand control** button tells it to switch the camera on.
-
-```bash
-pip install -r requirements.txt     # mediapipe, opencv-python, aiohttp
-python3 jarvis.py                   # opens http://localhost:8765, then click "Start hand control"
-```
-
-On Windows use `python` instead of `python3`. macOS asks for camera permission the first time. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe.
+Move the robots with your hands, from your webcam. Click **Start hand control**, allow the camera, and use these gestures (mirror view, like a mirror):
 
 | Gesture | What it does |
 | --- | --- |
@@ -29,13 +22,54 @@ On Windows use `python` instead of `python3`. macOS asks for camera permission t
 | Open hand, then a fist | Close the suit |
 | Flick an open palm sideways | Switch between the two robots |
 
-The point between your thumb and index finger is the cursor, drawn as a ring over the viewer. A small picture-in-picture shows what the tracker sees.
+The point between your thumb and index finger is the cursor, drawn as a ring over the viewer. A small picture-in-picture shows the tracked hands and the tracking rate. For best results use good front light, keep your hands 40 to 80 cm from the camera, and avoid a busy background.
+
+There are two ways to run the tracking. The button picks one for you.
+
+| | In the browser (deployed site, e.g. Render) | Python script (your own computer) |
+| --- | --- | --- |
+| Where the camera is read | In your browser tab, with MediaPipe running as WebAssembly | By `jarvis.py` with OpenCV |
+| Needs Python | No | Yes (3.9 or newer) |
+| How to start | Open the site, click Start, allow the camera | `python3 jarvis.py`, then click Start |
+| Needs https | Yes (Render provides it; `localhost` also counts) | No, it serves itself on `localhost` |
+
+A deployed server has no webcam, so a Python script running on Render could not see your hands. That is why the browser mode exists: your camera never leaves your computer. On `localhost` the page tries the Python script first and falls back to the browser camera.
+
+### Python script
+
+```bash
+pip install -r requirements.txt     # mediapipe, opencv-python, aiohttp
+python3 jarvis.py                   # opens http://localhost:8765, then click "Start hand control"
+```
+
+On Windows use `python` instead of `python3`. macOS asks for camera permission the first time. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe.
 
 Options: `--demo` (simulated hands, no camera), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
 
 Privacy and safety: only the 21 hand points per hand reach the page, never camera frames. The server listens on `127.0.0.1` only and refuses any page that is not its own, so other websites cannot switch your camera on. The camera turns off when you press Stop or close the tab.
 
-Hand control needs the local copy. The hosted artifact cannot reach `localhost`, so there the button explains how to run the script.
+### Deploy on Render
+
+The viewer is a static site, so it deploys on Render's free static tier.
+
+1. Push this repo to GitHub (the branch you want to publish).
+2. On Render: **New**, **Static Site**, connect the repo and pick the branch.
+3. Build Command: `npm install && npm run build`. Publish Directory: `dist`.
+4. Create the site. Open the `https://<name>.onrender.com` address, click **Start hand control** and allow the camera.
+
+Or use the Blueprint: **New**, **Blueprint**, select the repo, and Render reads `render.yaml` (same settings, plus a `Permissions-Policy: camera=(self)` header and long caching for the WebAssembly runtime).
+
+What the build does: `npm run build` bundles the viewer into `dist/index.html` and copies the MediaPipe WebAssembly runtime (about 27 MB) into `dist/mediapipe/wasm/`. The hand model (about 8 MB) is fetched from Google's storage the first time you press Start, so the first start takes a few seconds and needs internet access.
+
+| If you see | Do this |
+| --- | --- |
+| "Camera access is blocked" | Click the camera icon in the address bar and allow it, then press Start again |
+| "The camera needs a secure page" | Open the site over `https://` (the Render URL), not `http://` |
+| "Hand tracking could not load" | The build did not run (check the Build Command), or the hand model could not be fetched from Google; check the connection |
+| "Hand control cannot run in a preview" | Open the site in its own browser tab, not inside an embedded preview |
+| The first load after idle is slow | Free Render sites sleep when unused; the first visit wakes them |
+
+Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`).
 
 ## Controls
 
@@ -81,9 +115,13 @@ src/
   kit.js         Builder API, material presets for both looks, moulded-panel geometry
   lib.js         Reusable components (wheel, roller, tank, LiDAR, pump, ...)
   data/          One file per robot: parts, geometry, explode vectors, specs, sources
-  jarvis.js      Hand control client: WebSocket, reticle cursor, picture-in-picture
+  jarvis.js      Hand control client: picks the source, reticle cursor, picture-in-picture
+  handcam.js     In-browser camera + MediaPipe (WebAssembly) tracker
+  gestures.js    Gesture engine (JavaScript port of the one in jarvis.py)
   body.html, style.css
-jarvis.py        Hand tracking server (MediaPipe) and gesture engine
+jarvis.py        Hand tracking server (MediaPipe) and gesture engine, for local use
+tests/           Gesture engine tests
+render.yaml      Render Blueprint (static site)
 ```
 
 To add a part, add an object to a robot's `parts` array with a `home` position, an `ex` explode offset, a `layer` (0 outermost to 3 innermost) and a `build(b)` function. To add a robot, create a data file like `data/phantas.js` and register it in `main.js`.

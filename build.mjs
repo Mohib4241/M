@@ -18,12 +18,25 @@ const opts = {
   logLevel: 'warning',
 };
 
+// The MediaPipe WebAssembly runtime (about 27 MB) is served beside the page for in-browser hand
+// tracking. It is built here from node_modules and kept out of Git.
+function copyWasm() {
+  const from = 'node_modules/@mediapipe/tasks-vision/wasm';
+  const to = 'dist/mediapipe/wasm';
+  if (!fs.existsSync(from)) { console.warn('skipping hand-tracking runtime: @mediapipe/tasks-vision is not installed'); return; }
+  fs.mkdirSync(to, { recursive: true });
+  for (const f of ['vision_wasm_internal.js', 'vision_wasm_internal.wasm', 'vision_wasm_nosimd_internal.js', 'vision_wasm_nosimd_internal.wasm']) {
+    fs.copyFileSync(`${from}/${f}`, `${to}/${f}`);
+  }
+}
+
 async function assemble() {
   const out = await build(opts);
   const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const css = fs.readFileSync('src/style.css', 'utf8');
   const body = fs.readFileSync('src/body.html', 'utf8');
   fs.mkdirSync('dist', { recursive: true });
+  copyWasm();
 
   const page = `<!doctype html>
 <html lang="en">
