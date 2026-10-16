@@ -35,3 +35,4 @@ node_modules/
 __pycache__/
 *.pyc
 dist/mediapipe/
+.venv/

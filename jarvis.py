@@ -702,7 +702,10 @@ def main():
     ap.add_argument("--video", metavar="FILE", help="use a video file instead of the webcam (loops); for testing")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser automatically")
     ap.add_argument("--selftest", action="store_true", help="test the gesture engine and exit")
-    args = ap.parse_args()
+    argv = sys.argv[1:]
+    if "#" in argv:  # a pasted shell comment such as `python3 jarvis.py # on Windows ...`
+        argv = argv[: argv.index("#")]
+    args = ap.parse_args(argv)
 
     if args.selftest:
         sys.exit(0 if _selftest() else 1)

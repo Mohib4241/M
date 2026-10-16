@@ -40,40 +40,53 @@ There are two ways to run the tracking. The button picks one for you.
 | --- | --- | --- |
 | Where the camera is read | In your browser tab, with MediaPipe running as WebAssembly | By `jarvis.py` with OpenCV |
 | Needs Python | No | Yes (3.9 or newer) |
-| How to start | Open the site, click Start, allow the camera | `python3 jarvis.py`, then click Start |
+| How to start | Open the site, click Start, allow the camera | `./start.sh` (or `start.bat`), then click Start |
 | Needs https | Yes (Render provides it; `localhost` also counts) | No, it serves itself on `localhost` |
 
 A deployed server has no webcam, so a Python script running on Render could not see your hands. That is why the browser mode exists: your camera never leaves your computer. On `localhost` the page tries the Python script first and falls back to the browser camera.
 
 ### Test it on your computer first (Python script)
 
+The quick way is one command. It makes its own private Python environment in `.venv` (so it never touches your other Python packages), installs what it needs once, and starts.
+
+macOS or Linux:
+
 ```bash
 git clone -b ccr-1fec53df-afcwx0 https://github.com/Mohib4241/M.git
 cd M
-python3 -m venv .venv                      # optional, keeps packages tidy
-source .venv/bin/activate                  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt            # mediapipe, opencv-python, aiohttp
-python3 jarvis.py                          # Windows: python jarvis.py
+./start.sh
 ```
+
+Windows (Command Prompt, from the folder you cloned into):
+
+```bat
+start.bat
+```
+
+You need Python 3.9 or newer. (If pip reports that it cannot find `mediapipe`, your Python is probably too new for it; install Python 3.11 or 3.12 and run again.) The first run takes a few minutes (it downloads about 150 MB of packages, then an 8 MB hand model); later runs start in seconds. If `./start.sh` says permission denied, run `bash start.sh`.
 
 A browser tab opens at `http://localhost:8765`. Click **Start hand control** and allow the camera if your system asks (macOS: allow Terminal under System Settings, Privacy, Camera). The page switches to Focus view, shows the hand preview, and your hands appear as 3D holograms. Click **Camera backdrop** to put your camera behind the robot. This uses the committed `dist/index.html`, so you do not need Node.js.
 
-The bottom-left of the page shows which build you are looking at, for example `Local build · 2026-10-16 20:33 UTC`. If you test with no camera, `python3 jarvis.py --demo` plays simulated hands and `python3 jarvis.py --video clip.mp4` plays a recorded clip of your hands through the same tracker.
+The bottom-left of the page shows which build you are looking at, for example `Local build · 2026-10-16 20:33 UTC`. With no camera, `./start.sh --demo` plays simulated hands, and `./start.sh --video clip.mp4` plays a recorded clip of your hands through the same tracker.
 
-If the first start takes a moment, it is downloading the 8 MB hand model once.
+Paste commands one line at a time, and leave out any `# comment` that follows them. (The script ignores a pasted comment, but other commands in your shell may not.)
 
-### Python script
+### Python script, step by step
+
+If you prefer to manage Python yourself, this is exactly what `start.sh` does:
 
 ```bash
-pip install -r requirements.txt     # mediapipe, opencv-python, aiohttp
-python3 jarvis.py                   # opens http://localhost:8765, then click "Start hand control"
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python3 jarvis.py
 ```
 
-On Windows use `python` instead of `python3`. macOS asks for camera permission the first time. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe.
+On Windows, activate with `.venv\Scripts\activate` and run `python jarvis.py`. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe. Installing into a shared environment such as Anaconda `base` works but can change versions of numpy and matplotlib for your other projects, which is why the private `.venv` is the default.
 
 Options: `--demo` (simulated hands, no camera), `--video FILE` (a recorded clip instead of the webcam), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
 
-Privacy and safety: only the 21 hand points per hand reach the page, never camera frames. The server listens on `127.0.0.1` only and refuses any page that is not its own, so other websites cannot switch your camera on. The camera turns off when you press Stop or close the tab.
+Privacy and safety: only the 21 hand points per hand reach the page, never camera frames, except the small mirrored pictures sent when you click **Camera backdrop**. The server listens on `127.0.0.1` only and refuses any page that is not its own, so other websites cannot switch your camera on. The camera turns off when you press Stop or close the tab.
 
 ### Deploy on Render
 
@@ -154,6 +167,7 @@ src/
   gestures.js    Gesture engine (JavaScript port of the one in jarvis.py)
   body.html, style.css
 jarvis.py        Hand tracking server (MediaPipe) and gesture engine, for local use
+start.sh/.bat    One-command launcher: private .venv, install once, run jarvis.py
 tests/           Gesture engine tests
 render.yaml      Render Blueprint (static site)
 ```
