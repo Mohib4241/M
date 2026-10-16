@@ -457,9 +457,10 @@ def make_detector(mp, say=print):
 
 
 class CameraSource(Source):
-    def __init__(self, hub, camera=0, preview=False, width=640, height=480):
+    def __init__(self, hub, camera=0, preview=False, width=640, height=480, video=None):
         super().__init__(hub)
         self.camera, self.preview, self.width, self.height = camera, preview, width, height
+        self.video = video  # a video file to use instead of the webcam (loops); handy for testing
 
     def run(self):
         try:
@@ -473,25 +474,44 @@ class CameraSource(Source):
         except Exception as exc:  # model download or API problems
             self.hub.status("error", f"Could not start hand tracking: {exc}")
             return
-        cap = cv2.VideoCapture(self.camera)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        cap = cv2.VideoCapture(self.video if self.video else self.camera)
+        if not self.video:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         if not cap.isOpened():
             close()
-            self.hub.status("error", f"Could not open camera {self.camera}. Close other apps using it, or pass --camera 1.")
+            what = f"the video file {self.video}" if self.video else f"camera {self.camera}"
+            tip = "" if self.video else " Close other apps using it, or pass --camera 1."
+            self.hub.status("error", f"Could not open {what}.{tip}")
             return
-        self.hub.status("running", "Camera on. Show your hands.")
+        self.hub.status("running", "Video file playing. Show your hands." if self.video else "Camera on. Show your hands.")
         t0 = time.monotonic()
+        last_jpeg = 0.0
         try:
             while not self.stop_flag.is_set():
                 ok, frame = cap.read()
                 if not ok:
-                    time.sleep(0.01)
+                    if self.video:
+                        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # loop the file
+                    else:
+                        time.sleep(0.01)
                     continue
                 frame = cv2.flip(frame, 1)  # mirror, so moving your hand right moves the cursor right
                 now = time.monotonic()
                 hands = detect(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB), (now - t0) * 1000)
                 self.push(hands, now)
+                # The page can show the camera behind the robot. Frames are sent only on request, only to
+                # the local page, as small JPEGs; they are already mirrored like the landmarks.
+                if self.hub.wants_video() and now - last_jpeg >= 1 / 15:
+                    last_jpeg = now
+                    small = frame
+                    if frame.shape[1] > 480:
+                        small = cv2.resize(frame, (480, int(frame.shape[0] * 480 / frame.shape[1])))
+                    okj, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 72])
+                    if okj:
+                        self.hub.send_bytes(buf.tobytes())
+                if self.video:
+                    time.sleep(max(0.0, 1 / 30 - (time.monotonic() - now)))  # play files at normal speed
                 if self.preview:
                     h_px, w_px = frame.shape[:2]
                     for lm in hands:
@@ -559,6 +579,23 @@ class Hub:
         self.source = None
         self.loop = None
         self.state = "stopped"
+        self.video_clients = set()  # pages that asked to see the camera behind the robot
+
+    def wants_video(self):
+        return bool(self.video_clients)
+
+    def send_bytes(self, data):
+        """Thread-safe: send one JPEG to the pages that asked for the camera picture."""
+        if self.loop is None or not self.video_clients:
+            return
+        asyncio.run_coroutine_threadsafe(self._broadcast_bytes(data), self.loop)
+
+    async def _broadcast_bytes(self, data):
+        for ws in list(self.video_clients):
+            try:
+                await ws.send_bytes(data)
+            except Exception:
+                self.video_clients.discard(ws)
 
     def send(self, msg):
         """Thread-safe: queue a JSON message for every client."""
@@ -585,7 +622,7 @@ class Hub:
             return
         self.status("starting", "Opening the camera...")
         a = self.args
-        self.source = DemoSource(self) if a.demo else CameraSource(self, a.camera, a.preview)
+        self.source = DemoSource(self) if a.demo else CameraSource(self, a.camera, a.preview, video=a.video)
         self.source.start()
 
     def stop(self):
@@ -625,21 +662,26 @@ def build_app(args):
         await ws.prepare(request)
         hub.loop = asyncio.get_running_loop()
         hub.clients.add(ws)
-        await ws.send_str(json.dumps({"type": "hello", "demo": bool(args.demo), "state": hub.state}))
+        await ws.send_str(json.dumps({"type": "hello", "demo": bool(args.demo), "video": not args.demo, "state": hub.state}))
         try:
             async for msg in ws:
                 if msg.type != WSMsgType.TEXT:
                     continue
                 try:
-                    cmd = json.loads(msg.data).get("type")
+                    data = json.loads(msg.data)
                 except ValueError:
                     continue
+                cmd = data.get("type") if isinstance(data, dict) else None
                 if cmd == "start":
                     hub.start()
                 elif cmd == "stop":
                     hub.stop()
+                    hub.video_clients.discard(ws)
+                elif cmd == "video" and not args.demo:
+                    (hub.video_clients.add if data.get("on") else hub.video_clients.discard)(ws)
         finally:
             hub.clients.discard(ws)
+            hub.video_clients.discard(ws)
             if not hub.clients:
                 hub.stop()  # camera off when the page closes
         return ws
@@ -657,6 +699,7 @@ def main():
     ap.add_argument("--camera", type=int, default=0, help="camera index (default 0)")
     ap.add_argument("--preview", action="store_true", help="also show an OpenCV window with the hand skeleton")
     ap.add_argument("--demo", action="store_true", help="simulated hands, no camera needed")
+    ap.add_argument("--video", metavar="FILE", help="use a video file instead of the webcam (loops); for testing")
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser automatically")
     ap.add_argument("--selftest", action="store_true", help="test the gesture engine and exit")
     args = ap.parse_args()

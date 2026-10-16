@@ -31,7 +31,7 @@ While hand control runs, your hands appear inside the 3D scene, not just in the 
 - **3D hands**: each hand is drawn as glowing joints and bones with real depth (a hologram in the Hologram look, solid ink and teal in the Studio look). A pinch lights a pulsing orb at your fingertips.
 - **Pointing beam**: a ray leaves your wrist and lands on the part you are pointing at, with a ring on its surface.
 - **Two-hand tether**: with two hands, a line joins your palms with a live "% open" readout.
-- **Camera backdrop** (in-browser camera only): shows your live camera, mirrored, behind the robot, so the robot floats in front of you. The 3D hands line up with your real hands. The video is drawn on your device only and never uploaded. The Python script never sends video, so the backdrop is not available in that mode.
+- **Camera backdrop** (in-browser camera only): shows your live camera, mirrored, behind the robot, so the robot floats in front of you. The 3D hands line up with your real hands. The video is drawn on your device only and never uploaded. With the Python script the camera picture goes only to the local page (small JPEGs, and only after you click Camera backdrop).
 - Starting hand control switches to **Focus view** (panels hidden) so your hands have the whole stage; stopping restores your layout. Toggle **3D hands** and **Camera backdrop** in the dock.
 
 There are two ways to run the tracking. The button picks one for you.
@@ -45,6 +45,23 @@ There are two ways to run the tracking. The button picks one for you.
 
 A deployed server has no webcam, so a Python script running on Render could not see your hands. That is why the browser mode exists: your camera never leaves your computer. On `localhost` the page tries the Python script first and falls back to the browser camera.
 
+### Test it on your computer first (Python script)
+
+```bash
+git clone -b ccr-1fec53df-afcwx0 https://github.com/Mohib4241/M.git
+cd M
+python3 -m venv .venv                      # optional, keeps packages tidy
+source .venv/bin/activate                  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt            # mediapipe, opencv-python, aiohttp
+python3 jarvis.py                          # Windows: python jarvis.py
+```
+
+A browser tab opens at `http://localhost:8765`. Click **Start hand control** and allow the camera if your system asks (macOS: allow Terminal under System Settings, Privacy, Camera). The page switches to Focus view, shows the hand preview, and your hands appear as 3D holograms. Click **Camera backdrop** to put your camera behind the robot. This uses the committed `dist/index.html`, so you do not need Node.js.
+
+The bottom-left of the page shows which build you are looking at, for example `Local build · 2026-10-16 20:33 UTC`. If you test with no camera, `python3 jarvis.py --demo` plays simulated hands and `python3 jarvis.py --video clip.mp4` plays a recorded clip of your hands through the same tracker.
+
+If the first start takes a moment, it is downloading the 8 MB hand model once.
+
 ### Python script
 
 ```bash
@@ -54,7 +71,7 @@ python3 jarvis.py                   # opens http://localhost:8765, then click "S
 
 On Windows use `python` instead of `python3`. macOS asks for camera permission the first time. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe.
 
-Options: `--demo` (simulated hands, no camera), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
+Options: `--demo` (simulated hands, no camera), `--video FILE` (a recorded clip instead of the webcam), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
 
 Privacy and safety: only the 21 hand points per hand reach the page, never camera frames. The server listens on `127.0.0.1` only and refuses any page that is not its own, so other websites cannot switch your camera on. The camera turns off when you press Stop or close the tab.
 
@@ -77,6 +94,13 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 | "The camera needs a secure page" | Open the site over `https://` (the Render URL), not `http://` |
 | "Hand tracking could not load" | The build did not run (check the Build Command), or the hand model could not be fetched from Google; check the connection |
 | "Hand control cannot run in a preview" | Open the site in its own browser tab, not inside an embedded preview |
+
+**Redeployed on Render but nothing changed?** Look at the bottom-left of the page: it says `Render build <7 letters> · <time>`. That commit id must match the latest commit on the branch (`git log -1 --oneline`). If it does not:
+
+1. In Render open the site, **Settings**, and check **Branch** is `ccr-1fec53df-afcwx0` (the `main` branch has only the first commit).
+2. Click **Manual Deploy**, then **Clear build cache & deploy**, and wait for **Live**.
+3. Hard refresh the page (Ctrl+Shift+R, or Cmd+Shift+R on macOS).
+4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
 Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`).
 

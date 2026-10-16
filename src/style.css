@@ -113,6 +113,7 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; padding: 0; }
 
 .parts { list-style: none; overflow-y: auto; flex: 1; min-height: 0; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .keys { padding: 8px 18px 4px; margin-top: 2px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.4; color: var(--faint); }
+.stamp { padding: 0 18px 6px; font: 400 11px var(--mono); color: var(--faint); }
 .keys kbd { font: 500 11px var(--mono); padding: 0 4px; border: 1px solid var(--line-strong); color: var(--muted); }
 .gh { padding: 10px 18px 3px; font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 7px; }
 .gh i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }

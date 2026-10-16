@@ -38,6 +38,10 @@ export function initJarvis({ stage, app, $ }) {
   let raf = 0;
   let nframe = 0;
   let accent = '#3de0ff';
+  let pyVideo = false; // does jarvis.py offer the camera picture?
+  let pyCanvas = null;
+  let pyCtx = null;
+  let decoding = false;
   let autoFocused = false; // hand control hides the panels so your hands have the whole stage
 
   const say = (t) => { status.textContent = t; };
@@ -53,7 +57,7 @@ export function initJarvis({ stage, app, $ }) {
     const focusBtn = $('#focus-btn');
     if (s === 'running' && !app.classList.contains('focus')) { focusBtn.click(); autoFocused = true; }
     if (s === 'idle' && autoFocused) { if (app.classList.contains('focus')) focusBtn.click(); autoFocused = false; }
-    if (s === 'idle') { stage.setBackdrop(null); backdropBtn.setAttribute('aria-pressed', 'false'); backdropBtn.disabled = true; }
+    if (s === 'idle') { pyCanvas = null; pyVideo = false; stage.setBackdrop(null); backdropBtn.setAttribute('aria-pressed', 'false'); backdropBtn.disabled = true; }
     pipSrc.textContent = src ? (src === 'python' ? 'Python script' : 'this browser') : '';
     if (s !== 'running') { reticle.classList.remove('on', 'pinch'); stage._hoverAt = null; }
   }
@@ -111,6 +115,7 @@ export function initJarvis({ stage, app, $ }) {
     return new Promise((resolve) => {
       let opened = false;
       try { ws = new WebSocket(`ws://${location.host}/ws`); } catch { resolve(false); return; }
+      ws.binaryType = 'blob';
       ws.onopen = () => {
         opened = true;
         ws.send(JSON.stringify({ type: 'start' }));
@@ -118,6 +123,7 @@ export function initJarvis({ stage, app, $ }) {
         resolve(true);
       };
       ws.onmessage = (ev) => {
+        if (typeof ev.data !== 'string') { onPicture(ev.data); return; } // a camera picture for the backdrop
         try {
           const m = JSON.parse(ev.data);
           if (m.type === 'frame') queueFrame(m); else handle(m, 'python'); // commands are never dropped
@@ -170,11 +176,36 @@ export function initJarvis({ stage, app, $ }) {
   });
   backdropBtn.addEventListener('click', () => {
     const on = backdropBtn.getAttribute('aria-pressed') !== 'true';
-    const video = tracker && tracker.videoElement;
-    if (on && !video) return;
-    stage.setBackdrop(on ? video : null);
+    if (tracker) {
+      const video = tracker.videoElement;
+      if (on && !video) return;
+      stage.setBackdrop(on ? video : null); // the browser camera, flipped like a mirror
+    } else if (ws && ws.readyState === 1 && pyVideo) {
+      backdropBtn.setAttribute('aria-pressed', String(on)); // set first: late pictures are ignored once it is off
+      ws.send(JSON.stringify({ type: 'video', on }));
+      if (!on) { stage.setBackdrop(null); pyCanvas = null; }
+    } else return;
     backdropBtn.setAttribute('aria-pressed', String(on));
   });
+
+  // Pictures from jarvis.py (already mirrored) are drawn into a canvas that becomes the backdrop.
+  function onPicture(blob) {
+    if (decoding || backdropBtn.getAttribute('aria-pressed') !== 'true') return;
+    decoding = true;
+    createImageBitmap(blob).then((bmp) => {
+      if (backdropBtn.getAttribute('aria-pressed') !== 'true') { bmp.close(); return; }
+      if (!pyCanvas || pyCanvas.width !== bmp.width || pyCanvas.height !== bmp.height) {
+        pyCanvas = document.createElement('canvas');
+        pyCanvas.width = bmp.width;
+        pyCanvas.height = bmp.height;
+        pyCtx = pyCanvas.getContext('2d');
+        stage.setBackdrop(pyCanvas, { mirror: false });
+      }
+      pyCtx.drawImage(bmp, 0, 0);
+      bmp.close();
+      stage.updateBackdrop();
+    }).catch(() => { /* skip a bad picture */ }).finally(() => { decoding = false; });
+  }
   $('#jarvis-help-close').addEventListener('click', () => { help.hidden = true; });
   $('#jarvis-help-copy').addEventListener('click', async () => {
     const b = $('#jarvis-help-copy');
@@ -196,8 +227,13 @@ export function initJarvis({ stage, app, $ }) {
 
   function handle(m, src) {
     switch (m.type) {
+      case 'hello': pyVideo = !!m.video; break;
       case 'status':
-        if (m.state === 'running') { setState('running', src); say(m.message || 'Show your hands.'); }
+        if (m.state === 'running') {
+          setState('running', src);
+          say(m.message || 'Show your hands.');
+          if (src === 'python' && pyVideo) backdropBtn.disabled = false; // the script can show the camera behind the robot
+        }
         else if (m.state === 'starting') { say(m.message || 'Opening the camera…'); }
         else if (m.state === 'error') { end(); showHelp('error', m.message); }
         else if (m.state === 'stopped' && state !== 'idle') { end(); }

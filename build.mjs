@@ -4,6 +4,13 @@ import { build } from 'esbuild';
 import fs from 'node:fs';
 
 const TITLE = 'Armory';
+
+// Shown in the page so you can tell which build you are looking at (Render sets RENDER_GIT_COMMIT).
+function buildStamp() {
+  const when = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  const sha = process.env.RENDER_GIT_COMMIT;
+  return sha ? `Render build ${sha.slice(0, 7)} · ${when}` : `Local build · ${when}`;
+}
 const FONTS = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap';
 const fontLinks = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONTS}">`;
 
@@ -34,7 +41,7 @@ async function assemble() {
   const out = await build(opts);
   const js = out.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
   const css = fs.readFileSync('src/style.css', 'utf8');
-  const body = fs.readFileSync('src/body.html', 'utf8');
+  const body = fs.readFileSync('src/body.html', 'utf8').replace('__BUILD__', buildStamp());
   fs.mkdirSync('dist', { recursive: true });
   copyWasm();
 

@@ -309,13 +309,17 @@ export class Stage {
     this.studio.visible = studio && !this.backdropTex;
   }
 
-  /** Show a <video> (the webcam) behind the robot, mirrored like a mirror. Pass null to remove it. */
-  setBackdrop(video) {
+  /**
+   * Show the camera behind the robot. `src` is a <video> (browser camera, mirrored here) or a <canvas>
+   * (pictures from jarvis.py, already mirrored). Pass null to remove it.
+   */
+  setBackdrop(src, { mirror = true } = {}) {
     if (this.backdropTex) this.backdropTex.dispose();
-    this.backdropVideo = video || null;
+    this.backdropSrc = src || null;
+    this.backdropMirror = mirror;
     this.backdropTex = null;
-    if (video) {
-      const t = new THREE.VideoTexture(video);
+    if (src) {
+      const t = src instanceof HTMLVideoElement ? new THREE.VideoTexture(src) : new THREE.CanvasTexture(src);
       t.colorSpace = THREE.SRGBColorSpace;
       t.generateMipmaps = false;
       t.minFilter = THREE.LinearFilter;
@@ -323,18 +327,26 @@ export class Stage {
     }
     this.cover = null;
     this._applyBackground();
-    this.emit('backdrop', !!video);
+    this.emit('backdrop', !!src);
   }
 
-  // Crop the video to cover the screen (no stretching) and flip it horizontally.
+  /** Call after drawing a new picture into a canvas backdrop. */
+  updateBackdrop() {
+    if (!this.backdropTex) return;
+    if (!(this.backdropSrc instanceof HTMLVideoElement)) this.backdropTex.needsUpdate = true;
+    if (!this.cover) this._coverTransform();
+  }
+
+  // Crop the picture to cover the screen (no stretching), flipping it horizontally if it is a raw video.
   _coverTransform() {
-    const t = this.backdropTex, v = this.backdropVideo;
-    if (!t || !v || !v.videoWidth || !this.W) return;
-    const Av = this.W / this.H, Ac = v.videoWidth / v.videoHeight;
+    const t = this.backdropTex, v = this.backdropSrc;
+    const vw = v && (v.videoWidth || v.width), vh = v && (v.videoHeight || v.height);
+    if (!t || !vw || !this.W) return;
+    const Av = this.W / this.H, Ac = vw / vh;
     const rx = Math.min(1, Av / Ac), ry = Math.min(1, Ac / Av);
     this.cover = { rx, ry };
-    t.repeat.set(-rx, ry);
-    t.offset.set((1 + rx) / 2, (1 - ry) / 2);
+    if (this.backdropMirror) { t.repeat.set(-rx, ry); t.offset.set((1 + rx) / 2, (1 - ry) / 2); }
+    else { t.repeat.set(rx, ry); t.offset.set((1 - rx) / 2, (1 - ry) / 2); }
   }
 
   /** Map a point in mirrored video coordinates (0..1) to screen coordinates (0..1). */
