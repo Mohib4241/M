@@ -1,0 +1,74 @@
+<main id="app" data-robot="phantas">
+  <div class="stage-wrap"><canvas id="gl" aria-label="Interactive 3D exploded view. Scroll or pinch to open the robot, drag to orbit."></canvas></div>
+  <svg id="leaders" aria-hidden="true"></svg>
+  <div id="callouts" aria-hidden="true"></div>
+  <div id="tip" role="tooltip" hidden></div>
+
+  <div class="topbar">
+    <button class="btn-chip" id="open-left" aria-controls="left" aria-expanded="false">Parts</button>
+    <strong class="topbar-title">Armory</strong>
+    <button class="btn-chip" id="open-right" aria-controls="right" aria-expanded="false">Details</button>
+  </div>
+
+  <aside id="left" class="panel hud" aria-label="Robots and parts">
+    <div class="brand">
+      <h1>Armory</h1>
+      <p>Open up two commercial cleaning robots, piece by piece.</p>
+    </div>
+    <div class="switch" role="tablist" aria-label="Robot">
+      <button role="tab" class="robot-tab" data-robot="phantas" aria-selected="true"><span>Gausium</span><b>Phantas</b></button>
+      <button role="tab" class="robot-tab" data-robot="cc1pro" aria-selected="false"><span>PUDU</span><b>CC1 Pro</b></button>
+    </div>
+    <div class="list-head">
+      <h2>Parts <span id="part-count" class="mono"></span></h2>
+      <button class="link" id="clear-filter" hidden>Show all</button>
+    </div>
+    <div class="chips" id="groups"></div>
+    <ul class="parts" id="parts"></ul>
+    <p class="keys">Drag to orbit. Click a part to fly to it. <kbd>[</kbd> <kbd>]</kbd> step through parts, <kbd>F</kbd> hides the panels.</p>
+  </aside>
+
+  <aside id="right" class="panel hud" aria-label="Details" aria-live="polite">
+    <div id="detail"></div>
+  </aside>
+
+  <div id="hint" class="hint" aria-hidden="true">
+    <svg viewBox="0 0 64 40" width="64" height="40" fill="none" stroke="currentColor" stroke-width="1.6">
+      <circle class="f f1" cx="26" cy="22" r="6"/><circle class="f f2" cx="38" cy="18" r="6"/>
+      <path class="ar" d="M17 30l-6 5M47 10l6-5M11 35v-5M11 35h5M53 5v5M53 5h-5"/>
+    </svg>
+    <span>Pinch out or scroll up to open the suit</span>
+  </div>
+
+  <section class="dock hud" aria-label="Explode controls">
+    <div class="dock-row">
+      <div class="readout">
+        <span class="mono pct" id="pct">0%</span>
+        <b id="stage-name">Sealed</b>
+      </div>
+      <div class="slider">
+        <input id="explode" type="range" min="0" max="1" step="0.001" value="0" aria-label="Open the robot">
+        <div class="stops" id="stops"></div>
+      </div>
+      <div class="zoom">
+        <button class="icon" id="zoom-out" aria-label="Zoom out"><svg viewBox="0 0 16 16"><path d="M3 8h10"/></svg></button>
+        <button class="icon" id="zoom-in" aria-label="Zoom in"><svg viewBox="0 0 16 16"><path d="M3 8h10M8 3v10"/></svg></button>
+        <button class="icon" id="reset" aria-label="Reset view"><svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 0 1.8-3.8M3 2.5v3h3"/></svg></button>
+      </div>
+    </div>
+    <div class="toggles" id="toggles">
+      <button class="tgl" data-opt="xray" aria-pressed="true">X-ray shell</button>
+      <button class="tgl" data-opt="labels" aria-pressed="true">Callouts</button>
+      <button class="tgl" data-opt="water" aria-pressed="false">Water path</button>
+      <button class="tgl" data-opt="guides" aria-pressed="true">Guides</button>
+      <button class="tgl" data-opt="bloom" aria-pressed="true">Glow</button>
+      <button class="tgl" data-opt="rotate" aria-pressed="true">Orbit</button>
+      <button class="tgl" id="focus-btn" aria-pressed="false">Focus view</button>
+    </div>
+  </section>
+
+  <div id="nogl" class="nogl" hidden>
+    <b>This view needs WebGL.</b>
+    <p>Turn on hardware acceleration in your browser settings, or open this page in a current Chrome, Safari, Edge or Firefox.</p>
+  </div>
+</main>
