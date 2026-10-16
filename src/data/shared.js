@@ -1,14 +1,15 @@
 // Part groups, confidence levels and the research sources behind the numbers.
 
+// `color` is for the dark hologram look, `studio` for the light studio look.
 export const GROUPS = {
-  shell: { label: 'Shell & covers', color: '#cfe0ee' },
-  ui:    { label: 'Controls',        color: '#ffd166' },
-  clean: { label: 'Cleaning head',   color: '#5cf0b4' },
-  water: { label: 'Water system',    color: '#4cc9f0' },
-  air:   { label: 'Air & debris',    color: '#ff9f68' },
-  power: { label: 'Power & brain',   color: '#f6e05e' },
-  drive: { label: 'Drive & frame',   color: '#b79cff' },
-  sense: { label: 'Sensing',         color: '#ff6b8b' },
+  shell: { label: 'Shell & covers', color: '#cfe0ee', studio: '#5f7183' },
+  ui:    { label: 'Controls',        color: '#ffd166', studio: '#b97d00' },
+  clean: { label: 'Cleaning head',   color: '#5cf0b4', studio: '#0f9d6e' },
+  water: { label: 'Water system',    color: '#4cc9f0', studio: '#1b84c4' },
+  air:   { label: 'Air & debris',    color: '#ff9f68', studio: '#d0581f' },
+  power: { label: 'Power & brain',   color: '#f6e05e', studio: '#a58500' },
+  drive: { label: 'Drive & frame',   color: '#b79cff', studio: '#7254d0' },
+  sense: { label: 'Sensing',         color: '#ff6b8b', studio: '#cf2f58' },
 };
 
 // How well-sourced a part's data is. Shapes and positions are always schematic.
@@ -28,6 +29,10 @@ export const SOURCES = {
   'rl-ph':     { t: 'RobotLAB: Gausium Phantas', u: 'https://www.robotlab.com/store/gausium-phantas' },
   'gs-news':   { t: 'Gausium at Interclean Amsterdam 2024', u: 'https://gausium.com/news/gausium-unveiled-groundbreaking-innovations-at-interclean-amsterdam-2024/' },
   'leo':       { t: 'Leobotics: Phantas comparison', u: 'https://en.leobotics.com/comparateur-robot/robot-nettoyage-professionnel-phantas-gausium' },
+  'gs-nz':     { t: 'Gausium NZ: Phantas', u: 'https://gausium.co.nz/products/phantas-commercial-robot-floor-cleaner/' },
+  'anton-gs':  { t: 'Anton Robots: Gausium Phantas review', u: 'https://antonrobots.com/gausium-phantas-review/' },
+  'sonny':     { t: 'Sonny Robotics: Gausium Phantas', u: 'https://sonnyrobotics.com/products/gausium-phantas' },
+  'award':     { t: 'CleanLink: Gausium celebrates design award win', u: 'https://www.cleanlink.com/news/article/Gausium-Celebrates-Design-Award-Win--28670' },
   'pd-guide':  { t: 'PUDU CC1 Operation Guide V6', u: 'https://academy.pudutech.com/en/docs/PUDU-CC1-Operation-Guide-V6' },
   'pd-cmp':    { t: 'PUDU CC1 version comparison (PDF)', u: 'https://cdn.robotshop.com/media/P/Pud/RB-Pud-40/pdf/cc1-version-comparison.pdf' },
   'pd-site':   { t: 'PUDU Robotics: CC1 Pro', u: 'https://www.pudurobotics.com/en/products/cc1-pro' },

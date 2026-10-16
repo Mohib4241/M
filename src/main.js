@@ -17,7 +17,26 @@ function glOk() {
 }
 if (!glOk()) { $('#nogl').hidden = false; throw new Error('WebGL unavailable'); }
 
-const stage = new Stage(canvas);
+let look = 'studio';
+try { const saved = localStorage.getItem('armory-look'); if (saved === 'holo' || saved === 'studio') look = saved; } catch { /* storage unavailable */ }
+const stage = new Stage(canvas, { look });
+const gcol = (g) => (stage.look === 'studio' ? GROUPS[g].studio : GROUPS[g].color);
+
+// Colours, fonts and panel chrome follow the look.
+function applyLookUI() {
+  const L = stage.look;
+  document.documentElement.dataset.look = L;
+  app.dataset.look = L;
+  $$('.look button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.look === L)));
+  if (def) {
+    const tone = L === 'studio' && def.studio ? def.studio : def;
+    for (const el of [app, document.documentElement]) {
+      el.style.setProperty('--accent', tone.accent);
+      el.style.setProperty('--accent-2', tone.accent2);
+      el.style.setProperty('--accent-rgb', hexRgb(tone.accent));
+    }
+  }
+}
 let def = null;
 let order = []; // part ids in list order (for prev/next)
 const callouts = new Map(); // id → { el, path, dot }
@@ -26,11 +45,7 @@ const callouts = new Map(); // id → { el, path, dot }
 function useRobot(id, { intro = true } = {}) {
   def = ROBOTS[id];
   app.dataset.robot = id;
-  app.style.setProperty('--accent', def.accent);
-  app.style.setProperty('--accent-2', def.accent2);
-  app.style.setProperty('--accent-rgb', hexRgb(def.accent));
-  document.documentElement.style.setProperty('--accent', def.accent);
-  document.documentElement.style.setProperty('--accent-rgb', hexRgb(def.accent));
+  applyLookUI();
   $$('.robot-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.robot === id)));
   stage.loadRobot(def, { intro });
   buildList();
@@ -43,11 +58,11 @@ function useRobot(id, { intro = true } = {}) {
 
 function buildList() {
   const groupsUsed = [...new Set(def.parts.map((p) => p.group))];
-  $('#groups').innerHTML = groupsUsed.map((g) => `<button class="chip" data-g="${g}" aria-pressed="false" style="--c:${GROUPS[g].color}"><i></i>${esc(GROUPS[g].label)}</button>`).join('');
+  $('#groups').innerHTML = groupsUsed.map((g) => `<button class="chip" data-g="${g}" aria-pressed="false" style="--c:${gcol(g)}"><i></i>${esc(GROUPS[g].label)}</button>`).join('');
   let html = '';
   order = [];
   for (const g of groupsUsed) {
-    html += `<li class="gh" style="--c:${GROUPS[g].color}"><i></i>${esc(GROUPS[g].label)}</li>`;
+    html += `<li class="gh" style="--c:${gcol(g)}"><i></i>${esc(GROUPS[g].label)}</li>`;
     for (const p of def.parts.filter((x) => x.group === g)) {
       order.push(p.id);
       html += `<li><button class="part" data-id="${p.id}" data-g="${g}"><span>${esc(p.name)}</span><em>${esc(p.tag)}</em></button></li>`;
@@ -63,7 +78,7 @@ function buildCallouts() {
   $('#leaders').innerHTML = '';
   callouts.clear();
   for (const p of def.parts) {
-    const c = GROUPS[p.group].color;
+    const c = gcol(p.group);
     const el = document.createElement('div');
     el.className = 'callout';
     el.style.setProperty('--c', c);
@@ -111,7 +126,7 @@ function showPart(id) {
   const i = order.indexOf(id);
   $('#detail').innerHTML = `
     <button class="link d-back" id="back">← ${esc(def.short)} overview</button>
-    <div class="d-kicker" style="--c:${GROUPS[p.group].color}"><i></i>${esc(GROUPS[p.group].label)}</div>
+    <div class="d-kicker" style="--c:${gcol(p.group)}"><i></i>${esc(GROUPS[p.group].label)}</div>
     <h2 class="d-title">${esc(p.name)}</h2>
     <div class="conf">${bars(conf.level)}<span><b style="font-weight:500">${esc(conf.label)}</b><small>${esc(conf.note)}</small></span></div>
     <p class="d-desc">${esc(p.desc)}</p>
@@ -193,6 +208,19 @@ function setGroup(g) {
   $('#clear-filter').hidden = !g;
   $$('.part').forEach((b) => b.classList.toggle('mute', !!g && b.dataset.g !== g));
 }
+
+$$('.look button').forEach((b) => b.addEventListener('click', () => {
+  if (b.dataset.look === stage.look) return;
+  const sel = stage.selected?.def.id || null;
+  const g = $('.chip[aria-pressed="true"]')?.dataset.g || null;
+  stage.setLook(b.dataset.look);
+  try { localStorage.setItem('armory-look', stage.look); } catch { /* ignore */ }
+  applyLookUI();
+  buildList();
+  buildCallouts();
+  if (g) { $$('.chip').forEach((c) => c.setAttribute('aria-pressed', String(c.dataset.g === g))); $$('.part').forEach((x) => x.classList.toggle('mute', x.dataset.g !== g)); $('#clear-filter').hidden = false; }
+  if (sel) { $$('.part').forEach((x) => x.classList.toggle('sel', x.dataset.id === sel)); showPart(sel); } else showOverview();
+}));
 
 $$('.robot-tab').forEach((b) => b.addEventListener('click', () => {
   if (b.dataset.robot !== app.dataset.robot) useRobot(b.dataset.robot);

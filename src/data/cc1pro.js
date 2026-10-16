@@ -15,6 +15,7 @@ export default {
   blurb: 'AI-powered 4-in-1 cleaner. A rear camera checks the floor it just cleaned and goes back for missed stains.',
   accent: '#ffb347',
   accent2: '#ff5a3c',
+  studio: { accent: '#c8741a', accent2: '#d04a2c' },
   hover: 2.0,
   frame: { d0: 17, d1: 40, y0: 5.6, y1: 7.4 },
   stats: [
@@ -57,10 +58,10 @@ export default {
       desc: 'Black-glass front. Windows for the RGBD and RGB cameras high up, the LiDAR low, and ultrasonic sensors at the corners.',
       specs: [['Behind it', 'LiDAR · RGBD · front RGB · ultrasonic']],
       build(b) {
-        b.box(5.1, 3.65, 0.34, { m: 'shell', r: 0.2 });
-        b.box(4.3, 1.1, 0.06, { m: 'glass', at: [0, 0.9, 0.19], r: 0.04, e: false });
-        b.box(2.0, 0.7, 0.06, { m: 'glass', at: [0, -1.3, 0.19], r: 0.04, e: false });
-        b.box(4.3, 0.04, 0.03, { m: 'accent', at: [0, 0.2, 0.19], e: false });
+        b.panel(5.1, 3.65, 0.36, { m: 'shell', r: 0.7, bevel: 0.1 });
+        b.box(4.3, 1.1, 0.06, { m: 'glass', at: [0, 0.9, 0.2], r: 0.04, e: false });
+        b.box(2.0, 0.7, 0.06, { m: 'glass', at: [0, -1.3, 0.2], r: 0.04, e: false });
+        b.box(4.3, 0.04, 0.03, { m: 'accent', at: [0, 0.2, 0.2], e: false });
       },
     },
     {
@@ -69,9 +70,9 @@ export default {
       desc: 'Rear panel with a window for the AI camera, exhaust vents, and the cut-out where the drain hose leaves.',
       specs: [['Window for', 'Rear AI camera']],
       build(b) {
-        b.box(5.1, 3.65, 0.34, { m: 'shell', r: 0.2 });
-        b.box(1.5, 0.7, 0.06, { m: 'glass', at: [0, 0.9, -0.19], r: 0.04, e: false });
-        for (let i = 0; i < 8; i++) b.box(2.2, 0.06, 0.04, { m: 'dark', at: [0, -0.2 - i * 0.14, -0.19], e: false });
+        b.panel(5.1, 3.65, 0.36, { m: 'shell', r: 0.7, bevel: 0.1 });
+        b.box(1.5, 0.7, 0.06, { m: 'glass', at: [0, 0.9, -0.2], r: 0.04, e: false });
+        for (let i = 0; i < 8; i++) b.box(2.2, 0.06, 0.04, { m: 'dark', at: [0, -0.2 - i * 0.14, -0.2], e: false });
       },
     },
     ...[-1, 1].map((s) => ({
@@ -81,9 +82,9 @@ export default {
       desc: 'Side panel that closes the cabinet. It comes off outward to reach the tanks, battery and pump.',
       specs: [['Width', '552 mm overall']],
       build(b) {
-        b.box(0.34, 3.65, 5.66, { m: 'shell', r: 0.2 });
-        b.box(0.04, 0.06, 4.6, { m: 'accent', at: [s * 0.19, 1.1, 0], e: false });
-        b.box(0.04, 1.2, 1.7, { m: 'trim', r: 0.06, at: [s * 0.19, -0.2, -0.5], e: false });
+        b.panel(5.66, 3.65, 0.36, { m: 'shell', r: 0.75, bevel: 0.1, rot: [0, PI / 2, 0] });
+        b.box(0.04, 0.06, 4.6, { m: 'accent', at: [s * 0.2, 1.1, 0], e: false });
+        b.box(0.04, 1.2, 1.7, { m: 'trim', r: 0.06, at: [s * 0.2, -0.2, -0.5], e: false });
       },
     })),
     {

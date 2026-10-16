@@ -21,14 +21,18 @@ const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) 
 const damp = (dt, k) => 1 - Math.exp(-dt * k);
 
 export class Stage {
-  constructor(canvas) {
+  constructor(canvas, { look = 'studio' } = {}) {
     this.canvas = canvas;
+    this.look = look; // 'studio' (realistic) or 'holo' (hologram)
     this.handlers = {};
     this.opts = { xray: true, labels: true, water: false, bloom: true, rotate: true, guides: true };
     this.reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     this.e = 0; // current explode 0..1
+    this.ev = 0; // spring velocity
     this.eT = 0; // target explode
+    this.baseY = 0;
+    this._floorY = 0;
     this.time = 0;
     this.parts = [];
     this.partById = new Map();
@@ -44,6 +48,8 @@ export class Stage {
     this.cam = { az: 0.62, el: 0.3, azC: 0.62, elC: 0.3, dist: 20, tx: 0, ty: 5, tz: 0, ft: new THREE.Vector3() };
     this._initRenderer();
     this._initScene();
+    this._initStudio();
+    this._applyLook();
     this._initInput();
     this._onResize();
     new ResizeObserver(() => this._onResize()).observe(canvas.parentElement || canvas);
@@ -59,6 +65,8 @@ export class Stage {
     r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.0;
+    r.shadowMap.enabled = true;
+    r.shadowMap.type = THREE.PCFShadowMap;
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x02060b);
     this.scene.fog = new THREE.FogExp2(0x02060b, 0.011);
@@ -77,10 +85,21 @@ export class Stage {
 
   _initScene() {
     const s = this.scene;
-    s.add(new THREE.HemisphereLight(0x9fd0ff, 0x04080e, 0.55));
+    this.hemi = new THREE.HemisphereLight(0x9fd0ff, 0x04080e, 0.55);
+    s.add(this.hemi);
     this.key = new THREE.DirectionalLight(0xffffff, 1.45);
     this.key.position.set(7, 12, 9);
-    s.add(this.key);
+    this.key.target.position.set(0, 4, 0);
+    s.add(this.key, this.key.target);
+    const sh = this.key.shadow;
+    sh.mapSize.set(2048, 2048);
+    sh.camera.left = sh.camera.bottom = -24;
+    sh.camera.right = sh.camera.top = 24;
+    sh.camera.near = 2;
+    sh.camera.far = 80;
+    sh.bias = -0.0004;
+    sh.normalBias = 0.035;
+    sh.radius = 3;
     this.rim = new THREE.DirectionalLight(this.accent, 2.2);
     this.rim.position.set(-9, 6, -8);
     s.add(this.rim);
@@ -203,16 +222,101 @@ export class Stage {
     this.raycaster = new THREE.Raycaster();
   }
 
+  // Studio set: a seamless light cove with a soft shadow catcher.
+  _initStudio() {
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    const g = c.getContext('2d');
+    const grd = g.createRadialGradient(256, 256, 0, 256, 256, 256);
+    grd.addColorStop(0, '#eef1f4');
+    grd.addColorStop(0.5, '#e0e5e9');
+    grd.addColorStop(1, 'rgba(213,219,224,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 512, 512);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const group = (this.studio = new THREE.Group());
+    const disc = new THREE.Mesh(new THREE.PlaneGeometry(130, 130), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
+    disc.rotation.x = -Math.PI / 2;
+    disc.renderOrder = -10; // the cove always draws first, then shadows, then the robot
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(130, 130), new THREE.ShadowMaterial({ opacity: 0.34 }));
+    catcher.rotation.x = -Math.PI / 2;
+    catcher.position.y = 0.004;
+    catcher.receiveShadow = true;
+    catcher.renderOrder = -9;
+    // soft contact shadow under the sealed robot; fades as the parts lift away
+    const cc = document.createElement('canvas');
+    cc.width = cc.height = 256;
+    const cg = cc.getContext('2d');
+    const cgr = cg.createRadialGradient(128, 128, 10, 128, 128, 128);
+    cgr.addColorStop(0, 'rgba(10,18,26,.9)');
+    cgr.addColorStop(0.55, 'rgba(10,18,26,.45)');
+    cgr.addColorStop(1, 'rgba(10,18,26,0)');
+    cg.fillStyle = cgr;
+    cg.fillRect(0, 0, 256, 256);
+    this.contact = new THREE.Mesh(new THREE.PlaneGeometry(9, 10.5), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cc), transparent: true, depthWrite: false, toneMapped: false, opacity: 0.5 }));
+    this.contact.rotation.x = -Math.PI / 2;
+    this.contact.position.set(0, 0.008, -0.4);
+    this.contact.renderOrder = -8;
+    group.add(disc, catcher, this.contact);
+    this.scene.add(group);
+  }
+
+  _applyLook() {
+    const studio = this.look === 'studio';
+    const sc = this.scene;
+    this.platform.visible = this.motes.visible = !studio;
+    this.studio.visible = studio;
+    if (studio) this.scan.visible = false;
+    const bg = studio ? 0xd5dbe0 : 0x02060b;
+    sc.background.set(bg);
+    sc.fog = new THREE.FogExp2(bg, studio ? 0.0035 : 0.011);
+    sc.environmentIntensity = studio ? 0.95 : 0.3;
+    this.hemi.color.set(studio ? 0xffffff : 0x9fd0ff);
+    this.hemi.groundColor.set(studio ? 0xaeb7bf : 0x04080e);
+    this.hemi.intensity = studio ? 0.5 : 0.55;
+    this.key.color.set(studio ? 0xfff6ec : 0xffffff);
+    this.key.intensity = studio ? 2.5 : 1.45;
+    this.key.position.set(studio ? -9 : 7, studio ? 17 : 12, studio ? 7 : 9);
+    this.key.castShadow = studio;
+    this.rim.intensity = studio ? 0.8 : 2.2;
+    this.rim.color.set(studio ? 0xe8f1ff : this.accent);
+    this.under.visible = !studio;
+    this.baseY = studio ? 0 : (this.def ? this.def.hover : 0);
+    // materials that must read on a light background
+    this.flowPts.material.blending = studio ? THREE.NormalBlending : THREE.AdditiveBlending;
+    this.flowPts.material.size = studio ? 0.4 : 0.55;
+    this.flowGain = studio ? 1 : 1.5;
+    this.flowLine.material.color.set(studio ? 0x1b84c4 : 0x4cc9f0).multiplyScalar(studio ? 1 : 1.8);
+    this.guideMat.color.set(studio ? 0x2b3a47 : this.accent).multiplyScalar(studio ? 1 : 1.4);
+    this.flowPts.material.needsUpdate = true;
+  }
+
+  setLook(look) {
+    if (look === this.look) return;
+    const keep = { e: this.e, eT: this.eT, sel: this.selected?.def.id, group: this.groupFilter, az: this.cam.az, el: this.cam.el, zoom: this.userZoom };
+    this.look = look;
+    this._applyLook();
+    this.loadRobot(this.def, { intro: false });
+    this.e = keep.e; this.eT = keep.eT; this.ev = 0;
+    this.cam.az = this.cam.azC = keep.az; this.cam.el = this.cam.elC = keep.el; this.userZoom = keep.zoom;
+    this.groupFilter = keep.group;
+    if (keep.sel) this.selected = this.partById.get(keep.sel) || null;
+    this._update(0.016);
+    this.snapCamera();
+    this.emit('look', look);
+  }
+
   _setAccent(a, a2) {
     this.accent.set(a);
     this.accent2.set(a2);
-    this.rim.color.copy(this.accent);
+    if (this.look !== 'studio') this.rim.color.copy(this.accent);
     this.under.color.copy(this.accent);
     this.ringMat.color.copy(this.accent).multiplyScalar(1.6);
     for (const r of this.rings) r.material.color.copy(this.ringMat.color);
     this.ticks.children[0].material.color.copy(this.ringMat.color);
     this.motes.material.color.copy(this.accent).multiplyScalar(1.5);
-    this.guideMat.color.copy(this.accent).multiplyScalar(1.4);
+    if (this.look !== 'studio') this.guideMat.color.copy(this.accent).multiplyScalar(1.4);
     this.scanMats[0].color.copy(this.accent).multiplyScalar(1.2);
     this.scanMats[1].color.copy(this.accent).multiplyScalar(2);
   }
@@ -225,11 +329,13 @@ export class Stage {
     }
     if (this.guides) { this.scene.remove(this.guides); this.guides.geometry.dispose(); }
     this.def = def;
-    this._setAccent(def.accent, def.accent2);
-    const ctx = { accent: this.accent, accent2: this.accent2 };
+    const tone = this.look === 'studio' && def.studio ? def.studio : def;
+    this._setAccent(tone.accent, tone.accent2);
+    this.baseY = this.look === 'studio' ? 0 : def.hover;
+    const ctx = { accent: this.accent, accent2: this.accent2, look: this.look };
 
     const robot = (this.robot = new THREE.Group());
-    robot.position.y = def.hover;
+    robot.position.y = this.baseY;
     this.scene.add(robot);
     this.parts = [];
     this.partById.clear();
@@ -264,7 +370,10 @@ export class Stage {
       p.anchorLocal.copy(p.root.worldToLocal(c));
       p.radius = box.getSize(new THREE.Vector3()).length() / 2;
       p.homeWorld = p.root.localToWorld(p.anchorLocal.clone());
+      p.minRel = box.min.y - this.baseY; // lowest point relative to the robot origin
+      p.castOn = true;
     }
+    this._floorY = 0;
 
     // Guide lines
     const gg = new THREE.BufferGeometry();
@@ -278,18 +387,20 @@ export class Stage {
     this.cam.el = this.cam.elC = 0.3;
     if (intro && !this.reduced) {
       this.e = 1;
+      this.ev = 0;
       this.eT = 0;
       this._introHold = 0.9;
-      this.startScan();
+      if (this.look !== 'studio') this.startScan();
     } else {
       this.e = this.eT = 0;
+      this.ev = 0;
     }
     this._update(0.016);
     this.snapCamera();
     this.emit('robot', def);
   }
 
-  startScan() { if (this.reduced) return; this.scanT = 0; this.scan.visible = true; }
+  startScan() { if (this.reduced || this.look === 'studio') return; this.scanT = 0; this.scan.visible = true; }
 
   // ───────────────────────── input ─────────────────────────
   _initInput() {
@@ -367,7 +478,7 @@ export class Stage {
   setExplode(v, { instant = false } = {}) {
     this.eT = clamp(v, 0, 1);
     this._introHold = 0;
-    if (instant) { this.e = this.eT; }
+    if (instant) { this.e = this.eT; this.ev = 0; }
   }
 
   _pick(x, y) {
@@ -464,7 +575,7 @@ export class Stage {
     this.time += dt;
     this._adapt(dt);
     this._update(dt);
-    if (this.opts.bloom) this.composer.render(dt);
+    if (this.look === 'holo' && this.opts.bloom) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
     this.emit('frame', dt);
   }
@@ -482,6 +593,7 @@ export class Stage {
       const fps = P.n / P.sum;
       if (fps < 26) {
         this.opts.bloom = false;
+        if (this.look === 'studio') { this.key.shadow.map?.dispose(); this.key.shadow.map = null; this.key.shadow.mapSize.set(1024, 1024); }
         this.renderer.setPixelRatio(1);
         this._onResize();
         this.emit('quality', fps);
@@ -493,8 +605,16 @@ export class Stage {
     const t = this.time;
     this.uniforms.uTime.value = t;
     if (this._introHold > 0) { this._introHold -= dt; }
-    else this.e += (this.eT - this.e) * damp(dt, this.reduced ? 30 : 6.5);
-    if (Math.abs(this.eT - this.e) < 0.0004) this.e = this.eT;
+    else if (this.reduced) this.e += (this.eT - this.e) * damp(dt, 30);
+    else {
+      // A lightly under-damped spring: parts accelerate, glide and settle like real mass.
+      const K = 52, C = 13;
+      this.ev += ((this.eT - this.e) * K - this.ev * C) * dt;
+      this.e += this.ev * dt;
+      if (this.e < 0) { this.e = 0; this.ev = 0; }
+      if (this.e > 1) { this.e = 1; this.ev = 0; }
+    }
+    if (Math.abs(this.eT - this.e) < 0.0004 && Math.abs(this.ev) < 0.01) { this.e = this.eT; this.ev = 0; }
     const e = this.e;
 
     // part transforms
@@ -507,7 +627,8 @@ export class Stage {
       for (const s of p.spinners) s.rotation.y += dt * (s.userData.spin || 1);
       for (const l of p.liquids) l.rotation.z = Math.sin(t * 1.3 + p.home.x) * 0.012;
     }
-    this.robot.position.y = this.def.hover + Math.sin(t * 0.9) * 0.05 * (1 - e) * (this.reduced ? 0 : 1);
+    const bob = this.look === 'studio' ? 0 : Math.sin(t * 0.9) * 0.05 * (1 - e) * (this.reduced ? 0 : 1);
+    this.robot.position.y = this.baseY + bob;
     this.robot.updateMatrixWorld(true);
 
     this._visuals(dt);
@@ -520,6 +641,7 @@ export class Stage {
 
   _visuals(dt) {
     const sel = this.selected, hov = this.hovered, gf = this.groupFilter;
+    const studio = this.look === 'studio';
     const xr = this.opts.xray ? smooth(this.e, 0.03, 0.3) : 0;
     for (const p of this.parts) {
       let target = 1;
@@ -530,17 +652,27 @@ export class Stage {
       p.glow += (gt - p.glow) * damp(dt, 12);
       const pulse = p === sel ? 0.85 + 0.15 * Math.sin(this.time * 4) : 1;
       for (const r of p.b.records) {
-        const f = r.shell ? 1 - 0.66 * xr : 1;
+        const f = r.shell ? 1 - (studio ? 0.58 : 0.66) * xr : 1;
         const o = r.base * f * p.dim;
         r.mat.opacity = o;
         r.mat.depthWrite = o > 0.62 && !r.glass;
-        if (p.glow > 0.01) r.mat.emissive.copy(r.emissive).lerp(this.accent, p.glow * 0.5 * pulse);
+        if (p.glow > 0.01) r.mat.emissive.copy(r.emissive).lerp(this.accent, p.glow * (studio ? 0.2 : 0.5) * pulse);
         else r.mat.emissive.copy(r.emissive);
       }
       for (const em of p.b.edgeMats) {
+        if (em.userData.studio) {
+          // outline only the selected or hovered part
+          em.opacity = em.userData.base * p.glow * p.dim;
+          continue;
+        }
         const boost = 1 + p.glow * 0.9;
         em.opacity = Math.min(1, em.userData.base * p.dim * boost);
         em.color.copy(em.userData.col).lerp(WHITE, p.glow * 0.55);
+      }
+      // dimmed or X-rayed shell parts stop casting shadows
+      if (studio) {
+        const cast = p.dim > 0.5;
+        if (cast !== p.castOn) { p.castOn = cast; for (const m of p.b.meshes) m.castShadow = cast; }
       }
       p.root.visible = p.dim > 0.015;
     }
@@ -558,10 +690,10 @@ export class Stage {
     this.guides.computeLineDistances();
     const on = this.opts.guides && !this.selected;
     this.guides.visible = on;
-    this.guideMat.opacity = 0.4 * smooth(this.e, 0.02, 0.2) * (this.groupFilter ? 0.4 : 1);
+    this.guideMat.opacity = (this.look === 'studio' ? 0.5 : 0.4) * smooth(this.e, 0.02, 0.2) * (this.groupFilter ? 0.4 : 1);
   }
 
-  _hoverY() { return this.robot.position.y - this.def.hover; }
+  _hoverY() { return this.robot.position.y - this.baseY; }
 
   _water(dt) {
     const on = this.opts.water && this.def.water;
@@ -580,7 +712,8 @@ export class Stage {
     this.flowLine.geometry.setFromPoints(lp);
     const pos = this.flowPts.geometry.attributes.position;
     const col = this.flowPts.geometry.attributes.color;
-    const clean = new THREE.Color(0x56d3ff), dirty = new THREE.Color(0xd9a35a);
+    const studio = this.look === 'studio';
+    const clean = new THREE.Color(studio ? 0x1b9be0 : 0x56d3ff), dirty = new THREE.Color(studio ? 0xa4651f : 0xd9a35a);
     const sq = this.def.water.findIndex((r) => r.startsWith('squeegee'));
     const split = sq > 0 ? sq / (this.def.water.length - 1) : 0.65;
     for (let i = 0; i < this.flowN; i++) {
@@ -589,13 +722,23 @@ export class Stage {
       const v = curve.getPointAt(u);
       pos.setXYZ(i, v.x, v.y, v.z);
       const c = u < split ? clean : dirty;
-      col.setXYZ(i, c.r * 1.5, c.g * 1.5, c.b * 1.5);
+      col.setXYZ(i, c.r * this.flowGain, c.g * this.flowGain, c.b * this.flowGain);
     }
     pos.needsUpdate = col.needsUpdate = true;
   }
 
   _ambient(dt) {
     const t = this.time;
+    if (this.look === 'studio') {
+      // The floor sits under the lowest part, so a closed robot rests on it and open parts float above it.
+      let low = Infinity;
+      for (const p of this.parts) low = Math.min(low, this.robot.position.y + p.minRel + (p.root.position.y - p.home.y));
+      this._floorY += (low - this._floorY) * damp(dt, 9);
+      this.studio.position.y = this._floorY - 0.01;
+      this.contact.material.opacity = 0.55 * (1 - smooth(this.e, 0, 0.28));
+      this.key.target.position.y = 4 + this._floorY * 0.5;
+      return;
+    }
     this.ringMat.opacity = 1;
     for (const r of this.rings) if (r.userData.spin) r.rotation.z += dt * r.userData.spin * (this.reduced ? 0 : 1);
     this.ticks.rotation.y += dt * 0.02 * (this.reduced ? 0 : 1);

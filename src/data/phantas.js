@@ -3,6 +3,7 @@
 // Shapes and internal positions are a schematic reconstruction, not CAD.
 import * as THREE from 'three';
 import * as L from '../lib.js';
+import { waveBump } from '../kit.js';
 
 const PI = Math.PI;
 
@@ -11,9 +12,10 @@ export default {
   name: 'Gausium Phantas',
   short: 'Phantas',
   maker: 'Gaussian Robotics',
-  blurb: 'Compact 4-in-1 commercial robot: sweeps, vacuums, scrubs and dust-mops.',
+  blurb: 'Compact 4-in-1 commercial robot that sweeps, vacuums, scrubs and dust-mops. Red Dot and A\' Design award winner.',
   accent: '#3de0ff',
   accent2: '#ffd166',
+  studio: { accent: '#0a8f9c', accent2: '#c98a1a' },
   hover: 2.0,
   frame: { d0: 15.5, d1: 37, y0: 5.1, y1: 7.1 },
   stats: [
@@ -24,41 +26,50 @@ export default {
     ['Cleaning width', '465 mm sweep · 330 mm scrub'],
     ['Battery', '24 V · 40 Ah LFP'],
     ['Runtime', '4–4.5 h scrub · 10 h dust-mop'],
+    ['Passage', '650 mm corridor clearance'],
     ['Sensing', '2D LiDAR · 3D depth · RGB'],
   ],
   notes: [
-    'The compact Phantas 1.3 is listed at about 540 × 440 × 617 mm and 48–53 kg, so figures vary by version.',
+    'The compact Phantas 1.3 is listed at 21.3 × 17.3 × 24.3 in (about 540 × 440 × 617 mm) and 46–53 kg, so figures vary by version.',
+    'Design coverage describes a rounded, minimalist body in a monochrome scheme, with wavy-stripe texture on the front shell.',
+    'An optional dock handles charging, water refill, wastewater drainage and component rinsing.',
     'TASKI (Diversey) lists the dirty-water tank at 11 L; Gausium lists 10.5 L.',
   ],
-  sources: ['gs-spec', 'taski', 'gs-manual', 'softbank', 'okm', 'gs-dock', 'gs-news', 'rl-ph', 'leo'],
+  sources: ['gs-spec', 'taski', 'gs-manual', 'softbank', 'okm', 'gs-dock', 'gs-news', 'gs-nz', 'anton-gs', 'sonny', 'award', 'rl-ph', 'leo'],
   water: ['clean-tank:out', 'pump:a', 'pump:b', 'brush-deck:nozzle', 'squeegee:in', 'recovery-tank:in'],
 
   parts: [
     // ───────────── Shell & covers ─────────────
     {
       id: 'top-cover', name: 'Top cover', group: 'shell', layer: 0, delay: 0,
-      home: [0, 4.85, -0.2], ex: [0, 4.4, 0], tag: 'Lid', conf: 'inferred', src: ['gs-spec'],
+      home: [0, 4.89, -0.2], ex: [0, 4.4, 0], tag: 'Lid', conf: 'inferred', src: ['gs-spec'],
       desc: 'The lid over the dust-bag and filter bay. It carries the status light bar and is the first piece to lift away.',
       specs: [['Robot height', '619 mm (with handle)']],
       build(b) {
-        b.box(3.9, 0.55, 4.5, { m: 'shell', r: 0.24 });
-        b.box(3.1, 0.05, 0.5, { m: 'glass', at: [0, 0.28, 1.7], r: 0.02, e: false });
-        b.box(2.0, 0.06, 0.1, { m: 'led', at: [0, 0.3, 1.7], e: false });
-        for (let i = 0; i < 5; i++) b.box(1.7, 0.04, 0.07, { m: 'dark', at: [0, 0.282, -0.3 - i * 0.22], e: false });
-        b.box(3.0, 0.05, 0.7, { m: 'trim', r: 0.02, at: [0, 0.285, -1.85] });
+        b.box(3.9, 0.62, 4.5, { m: 'shell', r: 0.3 });
+        b.box(3.1, 0.05, 0.5, { m: 'glass', at: [0, 0.315, 1.7], r: 0.02, e: false });
+        b.box(2.0, 0.05, 0.08, { m: 'led', at: [0, 0.335, 1.7], e: false });
+        for (let i = 0; i < 5; i++) b.box(1.7, 0.04, 0.07, { m: 'dark', at: [0, 0.31, -0.3 - i * 0.22], e: false });
+        b.box(3.0, 0.05, 0.7, { m: 'trim', r: 0.02, at: [0, 0.315, -1.85] });
       },
     },
     {
       id: 'front-cover', name: 'Front sensor fascia', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 3.1, 2.6], ex: [0, 1.0, 4.4], tag: 'Sensor face', conf: 'named', src: ['gs-spec', 'leo'],
-      desc: 'Dark-glass face of the robot. Windows let the depth and RGB cameras look out from the top edge and the LiDAR from the bottom, while keeping dust off the electronics.',
+      home: [0, 3.1, 2.6], ex: [0, 1.0, 4.4], tag: 'Sensor face', conf: 'named', src: ['gs-spec', 'leo', 'award'],
+      desc: 'The face of the robot, finished with a wavy-stripe texture according to design coverage. Windows let the depth and RGB cameras look out from the top edge and the LiDAR from the bottom, while keeping dust off the electronics.',
       specs: [['Sensors behind it', '2D LiDAR · 3D depth cameras · RGB camera']],
       build(b) {
-        b.box(3.95, 2.8, 0.3, { m: 'shell', r: 0.14 });
-        b.box(3.3, 1.15, 0.06, { m: 'glass', at: [0, 0.78, 0.17], r: 0.03, e: false });
-        b.box(1.5, 0.6, 0.06, { m: 'glass', at: [0, -0.95, 0.17], r: 0.03, e: false });
-        b.box(3.3, 0.04, 0.03, { m: 'accent', at: [0, 0.08, 0.17], e: false });
-        b.box(3.6, 0.03, 0.02, { m: 'trim', at: [0, -0.4, 0.16], e: false });
+        const face = b.panel(3.95, 2.8, 0.32, { m: 'shell', r: 0.55, bevel: 0.1 });
+        if (b.ctx.look === 'studio') {
+          const t = waveBump();
+          t.repeat.set(2, 2);
+          face.material.bumpMap = t;
+          face.material.bumpScale = 1.1;
+        }
+        b.box(3.3, 1.15, 0.06, { m: 'glass', at: [0, 0.78, 0.18], r: 0.03, e: false });
+        b.box(1.5, 0.6, 0.06, { m: 'glass', at: [0, -0.95, 0.18], r: 0.03, e: false });
+        b.box(3.3, 0.04, 0.03, { m: 'accent', at: [0, 0.08, 0.18], e: false });
+        b.box(3.6, 0.03, 0.02, { m: 'trim', at: [0, -0.4, 0.17], e: false });
       },
     },
     {
@@ -67,10 +78,10 @@ export default {
       desc: 'Rear panel over the recovery tank and drive bay, with vents for motor exhaust and a window that lines up with the charging dock.',
       specs: [['Dock', 'CD-04, auto-recharge']],
       build(b) {
-        b.box(3.95, 3.0, 0.3, { m: 'shell', r: 0.14 });
-        for (let i = 0; i < 7; i++) b.box(1.8, 0.06, 0.04, { m: 'dark', at: [0, 0.6 - i * 0.15, -0.16], e: false });
-        b.box(1.3, 0.4, 0.04, { m: 'glass', at: [0, -1.0, -0.16], e: false });
-        b.box(2.6, 0.03, 0.02, { m: 'accent', at: [0, -0.2, -0.16], e: false });
+        b.panel(3.95, 3.0, 0.32, { m: 'shell', r: 0.55, bevel: 0.1 });
+        for (let i = 0; i < 7; i++) b.box(1.8, 0.06, 0.04, { m: 'dark', at: [0, 0.6 - i * 0.15, -0.17], e: false });
+        b.box(1.3, 0.4, 0.04, { m: 'glass', at: [0, -1.0, -0.17], e: false });
+        b.box(2.6, 0.03, 0.02, { m: 'accent', at: [0, -0.2, -0.17], e: false });
       },
     },
     ...[-1, 1].map((s) => ({
@@ -80,10 +91,10 @@ export default {
       desc: 'Side panel that closes the cabinet. It pops off outward so the tanks and wiring can be reached.',
       specs: [['Width', '445 mm overall']],
       build(b) {
-        b.box(0.3, 3.0, 4.7, { m: 'shell', r: 0.14 });
-        b.box(0.04, 0.06, 4.0, { m: 'accent', at: [s * 0.16, 0.7, 0], e: false });
-        b.box(0.04, 1.1, 1.5, { m: 'trim', r: 0.05, at: [s * 0.16, -0.3, -0.6], e: false });
-        b.box(0.04, 0.5, 0.5, { m: 'glass', at: [s * 0.16, -0.3, 1.6], e: false });
+        b.panel(4.7, 3.0, 0.32, { m: 'shell', r: 0.6, bevel: 0.1, rot: [0, PI / 2, 0] });
+        b.box(0.04, 0.06, 4.0, { m: 'accent', at: [s * 0.17, 0.7, 0], e: false });
+        b.box(0.04, 1.1, 1.5, { m: 'trim', r: 0.05, at: [s * 0.17, -0.3, -0.6], e: false });
+        b.box(0.04, 0.5, 0.5, { m: 'glass', at: [s * 0.17, -0.3, 1.6], e: false });
       },
     })),
     {
@@ -100,14 +111,14 @@ export default {
     // ───────────── Controls ─────────────
     {
       id: 'smart-handle', name: 'Smart handle', group: 'ui', layer: 0, delay: 0.08,
-      home: [0, 5.1, -2.3], ex: [0, 5.4, -2.0], tag: 'Hard keys', conf: 'named', src: ['gs-news'],
-      desc: 'Hard buttons on a rear handle for basic operations like picking a cleaning mode, so staff can start a job without a touchscreen. Shown as an upgrade at Interclean Amsterdam 2024.',
-      specs: [['Buttons', 'Hard keys for basic operations such as mode selection (reported)']],
+      home: [0, 5.2, -2.3], ex: [0, 5.4, -2.0], tag: 'Hard keys', conf: 'named', src: ['gs-news', 'gs-nz', 'anton-gs'],
+      desc: 'An integrated handle with hard buttons for basic operations like picking a cleaning mode. It switches the robot between automatic and manual operation, so staff can start or steer a job without a touchscreen. The buttons were shown as an upgrade at Interclean Amsterdam 2024.',
+      specs: [['Operation', 'Switches between auto and manual'], ['Buttons', 'Hard keys such as mode selection (reported)']],
       build(b) {
-        for (const s of [-1, 1]) b.cyl(0.13, 0.13, 1.0, { m: 'metal', at: [s * 1.5, 0.5, 0], seg: 18 });
-        b.cyl(0.15, 0.15, 3.3, { m: 'dark', rot: [0, 0, PI / 2], at: [0, 1.05, 0], seg: 20 });
-        for (const s of [-1, 1]) b.cyl(0.17, 0.17, 0.7, { m: 'rubber', rot: [0, 0, PI / 2], at: [s * 1.25, 1.05, 0], seg: 18, e: false });
-        const ctl = b.at([0, 1.3, 0.12], () => {
+        for (const s of [-1, 1]) b.cyl(0.13, 0.13, 0.84, { m: 'metal', at: [s * 1.5, 0.42, 0], seg: 18 });
+        b.cyl(0.15, 0.15, 3.3, { m: 'dark', rot: [0, 0, PI / 2], at: [0, 0.84, 0], seg: 20 });
+        for (const s of [-1, 1]) b.cyl(0.17, 0.17, 0.7, { m: 'rubber', rot: [0, 0, PI / 2], at: [s * 1.25, 0.84, 0], seg: 18, e: false });
+        const ctl = b.at([0, 0.92, 0.12], () => {
           b.box(1.5, 0.3, 0.6, { m: 'trim', r: 0.1 });
           for (let i = 0; i < 4; i++) b.cyl(0.07, 0.07, 0.05, { m: 'accent', at: [-0.5 + i * 0.33, 0.17, 0.14], seg: 12, e: false });
           b.box(0.7, 0.02, 0.18, { m: 'screen', at: [0, 0.16, -0.14], e: false });
@@ -117,7 +128,7 @@ export default {
     },
     {
       id: 'e-stop', name: 'Emergency stop', group: 'ui', layer: 0, delay: 0.1,
-      home: [1.8, 5.15, 1.1], ex: [1.4, 5.0, 1.4], tag: 'E-stop', conf: 'inferred', src: ['gs-spec'],
+      home: [1.8, 5.2, 1.1], ex: [1.4, 5.0, 1.4], tag: 'E-stop', conf: 'inferred', src: ['gs-spec'],
       desc: 'Red mushroom switch that cuts drive and cleaning power at once. Standard on commercial floor machines; its exact position on the Phantas is not shown in the sources reached.',
       specs: [['Action', 'Cuts drive + brush power']],
       build(b) { L.eStop(b, { r: 0.3 }); },
