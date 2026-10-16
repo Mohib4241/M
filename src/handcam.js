@@ -24,6 +24,9 @@ export class BrowserTracker {
     this.handle = 0;
   }
 
+  // The hidden <video> element, so the page can show it as a camera backdrop.
+  get videoElement() { return this.video; }
+
   async start() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new TrackerError('insecure', 'This page cannot reach the camera.');
@@ -90,7 +93,7 @@ export class BrowserTracker {
       try {
         const res = this.landmarker.detectForVideo(v, this._lastTs);
         // mirror horizontally so moving your hand right moves the cursor right
-        hands = (res.landmarks || []).map((h) => h.map((p) => [1 - p.x, p.y]));
+        hands = (res.landmarks || []).map((h) => h.map((p) => [1 - p.x, p.y, p.z]));
       } catch { /* skip a bad frame */ }
       const { events, frame } = this.engine.update(hands, now / 1000);
       this._fpsN++;

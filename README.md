@@ -24,6 +24,16 @@ Move the robots with your hands, from your webcam. Click **Start hand control**,
 
 The point between your thumb and index finger is the cursor, drawn as a ring over the viewer. A small picture-in-picture shows the tracked hands and the tracking rate. For best results use good front light, keep your hands 40 to 80 cm from the camera, and avoid a busy background.
 
+### The 3D effect
+
+While hand control runs, your hands appear inside the 3D scene, not just in the corner preview:
+
+- **3D hands**: each hand is drawn as glowing joints and bones with real depth (a hologram in the Hologram look, solid ink and teal in the Studio look). A pinch lights a pulsing orb at your fingertips.
+- **Pointing beam**: a ray leaves your wrist and lands on the part you are pointing at, with a ring on its surface.
+- **Two-hand tether**: with two hands, a line joins your palms with a live "% open" readout.
+- **Camera backdrop** (in-browser camera only): shows your live camera, mirrored, behind the robot, so the robot floats in front of you. The 3D hands line up with your real hands. The video is drawn on your device only and never uploaded. The Python script never sends video, so the backdrop is not available in that mode.
+- Starting hand control switches to **Focus view** (panels hidden) so your hands have the whole stage; stopping restores your layout. Toggle **3D hands** and **Camera backdrop** in the dock.
+
 There are two ways to run the tracking. The button picks one for you.
 
 | | In the browser (deployed site, e.g. Render) | Python script (your own computer) |
@@ -115,6 +125,7 @@ src/
   lib.js         Reusable components (wheel, roller, tank, LiDAR, pump, ...)
   data/          One file per robot: parts, geometry, explode vectors, specs, sources
   jarvis.js      Hand control client: picks the source, reticle cursor, picture-in-picture
+  hands3d.js     3D holographic hands, pointing beam, two-hand tether (in the scene)
   handcam.js     In-browser camera + MediaPipe (WebAssembly) tracker
   gestures.js    Gesture engine (JavaScript port of the one in jarvis.py)
   body.html, style.css

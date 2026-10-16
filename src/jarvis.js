@@ -3,6 +3,7 @@
 //   - "Python": jarvis.py on your own computer, reached over a local WebSocket
 //   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
 import { BrowserTracker } from './handcam.js';
+import { Hands3D } from './hands3d.js';
 
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
@@ -21,6 +22,10 @@ export function initJarvis({ stage, app, $ }) {
   const reticle = $('#reticle');
   const cv = pip.querySelector('canvas');
   const g = cv.getContext('2d');
+  const hands3d = new Hands3D(stage, $('#tether-label'));
+  stage.hands3d = hands3d; // exposed for debugging
+  const handsBtn = $('#hands3d-btn');
+  const backdropBtn = $('#backdrop-btn');
   // Page served by jarvis.py (or any localhost server): try the Python script first.
   const local = location.protocol === 'http:' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 
@@ -33,6 +38,7 @@ export function initJarvis({ stage, app, $ }) {
   let raf = 0;
   let nframe = 0;
   let accent = '#3de0ff';
+  let autoFocused = false; // hand control hides the panels so your hands have the whole stage
 
   const say = (t) => { status.textContent = t; };
 
@@ -43,6 +49,11 @@ export function initJarvis({ stage, app, $ }) {
     btn.textContent = s === 'idle' ? 'Start hand control' : s === 'connecting' ? 'Starting…' : 'Stop hand control';
     app.classList.toggle('jarvis', s === 'running');
     pip.hidden = s !== 'running';
+    hands3d.running = s === 'running';
+    const focusBtn = $('#focus-btn');
+    if (s === 'running' && !app.classList.contains('focus')) { focusBtn.click(); autoFocused = true; }
+    if (s === 'idle' && autoFocused) { if (app.classList.contains('focus')) focusBtn.click(); autoFocused = false; }
+    if (s === 'idle') { stage.setBackdrop(null); backdropBtn.setAttribute('aria-pressed', 'false'); backdropBtn.disabled = true; }
     pipSrc.textContent = src ? (src === 'python' ? 'Python script' : 'this browser') : '';
     if (s !== 'running') { reticle.classList.remove('on', 'pinch'); stage._hoverAt = null; }
   }
@@ -124,6 +135,7 @@ export function initJarvis({ stage, app, $ }) {
     try {
       await tracker.start();
       setState('running', 'browser');
+      backdropBtn.disabled = false; // the browser camera can also be shown behind the robot
       say('Show your hands.');
     } catch (e) {
       const kind = e.kind || 'error';
@@ -152,6 +164,17 @@ export function initJarvis({ stage, app, $ }) {
   }
 
   btn.addEventListener('click', () => { if (state === 'idle') start(); else stop(); });
+  handsBtn.addEventListener('click', () => {
+    hands3d.enabled = handsBtn.getAttribute('aria-pressed') !== 'true';
+    handsBtn.setAttribute('aria-pressed', String(hands3d.enabled));
+  });
+  backdropBtn.addEventListener('click', () => {
+    const on = backdropBtn.getAttribute('aria-pressed') !== 'true';
+    const video = tracker && tracker.videoElement;
+    if (on && !video) return;
+    stage.setBackdrop(on ? video : null);
+    backdropBtn.setAttribute('aria-pressed', String(on));
+  });
   $('#jarvis-help-close').addEventListener('click', () => { help.hidden = true; });
   $('#jarvis-help-copy').addEventListener('click', async () => {
     const b = $('#jarvis-help-copy');
@@ -167,7 +190,8 @@ export function initJarvis({ stage, app, $ }) {
   }
 
   function toPage(nx, ny, r = app.getBoundingClientRect()) {
-    return { x: r.left + clamp(nx, 0, 1) * r.width, y: r.top + clamp(ny, 0, 1) * r.height };
+    const [sx, sy] = stage.backdropMap(nx, ny); // identity unless the camera backdrop crops the video
+    return { x: r.left + clamp(sx, 0, 1) * r.width, y: r.top + clamp(sy, 0, 1) * r.height };
   }
 
   function handle(m, src) {
@@ -230,6 +254,7 @@ export function initJarvis({ stage, app, $ }) {
       lastMode = label;
       say(m.mode === 'two' ? 'Two hands: pull apart or push together' : n === 1 ? 'One hand: pinch to grab or click' : 'Show your hands');
     }
+    hands3d.setFrame(m);
     nframe++;
     if (nframe % 30 === 1) accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || accent;
     drawPip(m);

@@ -63,6 +63,8 @@
     <div class="toggles" id="toggles">
       <button class="tgl jbtn" id="jarvis-btn" aria-pressed="false">Start hand control</button>
       <span id="jarvis-status" class="jstatus" aria-live="polite"></span>
+      <button class="tgl" id="hands3d-btn" aria-pressed="true" title="Show your hands as 3D holograms in the scene">3D hands</button>
+      <button class="tgl" id="backdrop-btn" aria-pressed="false" disabled title="Needs the in-browser camera. Start hand control on the deployed site first.">Camera backdrop</button>
       <button class="tgl" data-opt="xray" aria-pressed="true">X-ray shell</button>
       <button class="tgl" data-opt="labels" aria-pressed="true">Callouts</button>
       <button class="tgl" data-opt="water" aria-pressed="false">Water path</button>
@@ -74,6 +76,7 @@
   </section>
 
   <div id="reticle" class="reticle" aria-hidden="true"></div>
+  <div id="tether-label" class="tether" aria-hidden="true" hidden></div>
 
   <aside id="jarvis-pip" class="pip hud" aria-label="Hand tracking" hidden>
     <canvas width="240" height="170"></canvas>

@@ -191,7 +191,7 @@ export class GestureEngine {
     return {
       type: 'frame',
       mode,
-      hands: hands.map((h, i) => ({ lm: h.lm.map(([x, y]) => [r3(x), r3(y)]), shape: labels[i] || 'other' })),
+      hands: hands.map((h, i) => ({ lm: h.lm.map(([x, y, z]) => [r3(x), r3(y), r3(z || 0)]), shape: labels[i] || 'other' })),
       cursor,
     };
   }

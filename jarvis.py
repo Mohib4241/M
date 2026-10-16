@@ -266,7 +266,7 @@ class GestureEngine:
             "type": "frame",
             "mode": mode,
             "hands": [
-                {"lm": [[round(x, 3), round(y, 3)] for x, y in h.lm], "shape": labels[i] if i < len(labels) else "other"}
+                {"lm": [[round(p[0], 3), round(p[1], 3), round(p[2], 3) if len(p) > 2 else 0.0] for p in h.lm], "shape": labels[i] if i < len(labels) else "other"}
                 for i, h in enumerate(hands)
             ],
             "cursor": cursor,
@@ -429,7 +429,7 @@ def make_detector(mp, say=print):
 
         def detect(rgb, _ts):
             res = hands.process(rgb)
-            return [[(p.x, p.y) for p in h.landmark] for h in (res.multi_hand_landmarks or [])]
+            return [[(p.x, p.y, p.z) for p in h.landmark] for h in (res.multi_hand_landmarks or [])]
 
         return detect, hands.close
 
@@ -451,7 +451,7 @@ def make_detector(mp, say=print):
         ts_ms = max(int(ts_ms), last[0] + 1)  # the Tasks API needs strictly increasing timestamps
         last[0] = ts_ms
         res = landmarker.detect_for_video(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb), ts_ms)
-        return [[(p.x, p.y) for p in h] for h in res.hand_landmarks]
+        return [[(p.x, p.y, p.z) for p in h] for h in res.hand_landmarks]
 
     return detect, landmarker.close
 

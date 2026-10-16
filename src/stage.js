@@ -71,6 +71,8 @@ export class Stage {
     this.scene.background = new THREE.Color(0x02060b);
     this.scene.fog = new THREE.FogExp2(0x02060b, 0.011);
     this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 400);
+    this.scene.add(this.camera); // so things parented to it (the 3D hands) are drawn
+    this.hooks = []; // per-frame callbacks, run after the camera is placed
 
     const pm = new THREE.PMREMGenerator(r);
     this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -266,11 +268,7 @@ export class Stage {
     const studio = this.look === 'studio';
     const sc = this.scene;
     this.platform.visible = this.motes.visible = !studio;
-    this.studio.visible = studio;
     if (studio) this.scan.visible = false;
-    const bg = studio ? 0xd5dbe0 : 0x02060b;
-    sc.background.set(bg);
-    sc.fog = new THREE.FogExp2(bg, studio ? 0.0035 : 0.011);
     sc.environmentIntensity = studio ? 0.95 : 0.3;
     this.hemi.color.set(studio ? 0xffffff : 0x9fd0ff);
     this.hemi.groundColor.set(studio ? 0xaeb7bf : 0x04080e);
@@ -290,6 +288,60 @@ export class Stage {
     this.flowLine.material.color.set(studio ? 0x1b84c4 : 0x4cc9f0).multiplyScalar(studio ? 1 : 1.8);
     this.guideMat.color.set(studio ? 0x2b3a47 : this.accent).multiplyScalar(studio ? 1 : 1.4);
     this.flowPts.material.needsUpdate = true;
+    this._applyBackground();
+  }
+
+  // Studio cove / dark void, or the live camera feed when a backdrop is set.
+  _applyBackground() {
+    const studio = this.look === 'studio';
+    const sc = this.scene;
+    const bg = studio ? 0xd5dbe0 : 0x02060b;
+    if (this.backdropTex) {
+      sc.background = this.backdropTex;
+      sc.backgroundIntensity = studio ? 1 : 0.75;
+      sc.fog = null;
+      this._coverTransform();
+    } else {
+      sc.background = new THREE.Color(bg);
+      sc.backgroundIntensity = 1;
+      sc.fog = new THREE.FogExp2(bg, studio ? 0.0035 : 0.011);
+    }
+    this.studio.visible = studio && !this.backdropTex;
+  }
+
+  /** Show a <video> (the webcam) behind the robot, mirrored like a mirror. Pass null to remove it. */
+  setBackdrop(video) {
+    if (this.backdropTex) this.backdropTex.dispose();
+    this.backdropVideo = video || null;
+    this.backdropTex = null;
+    if (video) {
+      const t = new THREE.VideoTexture(video);
+      t.colorSpace = THREE.SRGBColorSpace;
+      t.generateMipmaps = false;
+      t.minFilter = THREE.LinearFilter;
+      this.backdropTex = t;
+    }
+    this.cover = null;
+    this._applyBackground();
+    this.emit('backdrop', !!video);
+  }
+
+  // Crop the video to cover the screen (no stretching) and flip it horizontally.
+  _coverTransform() {
+    const t = this.backdropTex, v = this.backdropVideo;
+    if (!t || !v || !v.videoWidth || !this.W) return;
+    const Av = this.W / this.H, Ac = v.videoWidth / v.videoHeight;
+    const rx = Math.min(1, Av / Ac), ry = Math.min(1, Ac / Av);
+    this.cover = { rx, ry };
+    t.repeat.set(-rx, ry);
+    t.offset.set((1 + rx) / 2, (1 - ry) / 2);
+  }
+
+  /** Map a point in mirrored video coordinates (0..1) to screen coordinates (0..1). */
+  backdropMap(nx, ny) {
+    const c = this.cover;
+    if (!this.backdropTex || !c) return [nx, ny];
+    return [(nx - (1 - c.rx) / 2) / c.rx, (ny - (1 - c.ry) / 2) / c.ry];
   }
 
   setLook(look) {
@@ -487,6 +539,20 @@ export class Stage {
     this.emit('pick', hit ? hit.def.id : null);
   }
 
+  /** Part and 3D point under a screen position, or null. */
+  pickPoint(x, y) {
+    const rect = this.canvas.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    const list = [];
+    for (const p of this.parts) if (p.dim > 0.3) list.push(...p.b.meshes);
+    for (const h of this.raycaster.intersectObjects(list, false)) {
+      if (h.object.material.opacity < 0.05) continue;
+      return { part: h.object.userData.part, point: h.point };
+    }
+    return null;
+  }
+
   _pick(x, y) {
     const rect = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);
@@ -561,6 +627,7 @@ export class Stage {
     this.bloom.setSize(w, h);
     this.camera.aspect = w / h;
     this._applyView();
+    this._coverTransform();
   }
 
   _applyView() {
@@ -643,6 +710,8 @@ export class Stage {
     this._ambient(dt);
     this._camera(dt);
     this._hover();
+    this.camera.updateMatrixWorld();
+    for (const h of this.hooks) h(dt);
   }
 
   _visuals(dt) {
