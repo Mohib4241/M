@@ -2,6 +2,7 @@ import { Stage } from './stage.js';
 import { GROUPS, CONF, SOURCES } from './data/shared.js';
 import phantas from './data/phantas.js';
 import cc1pro from './data/cc1pro.js';
+import { initJarvis } from './jarvis.js';
 
 const ROBOTS = { phantas, cc1pro };
 const $ = (s, r = document) => r.querySelector(s);
@@ -369,4 +370,5 @@ addEventListener('orientationchange', layoutInsets);
 // ─────────────── boot ───────────────
 useRobot('phantas');
 layoutInsets();
+initJarvis({ stage, app, $ });
 window.__armory = { stage, useRobot, ROBOTS };

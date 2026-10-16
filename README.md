@@ -9,6 +9,34 @@ Two looks, switched in the top-left panel:
 
 Open `dist/index.html` in a browser. It is a single self-contained file (Three.js is bundled in). It needs WebGL; the fonts load from Google Fonts when online and fall back to system fonts offline.
 
+## Hand control (Jarvis mode)
+
+Move the robots with your hands, from your webcam. A web page cannot open your camera into Python by itself, so the Python script runs the tracking and serves the viewer; the page's **Start hand control** button tells it to switch the camera on.
+
+```bash
+pip install -r requirements.txt     # mediapipe, opencv-python, aiohttp
+python3 jarvis.py                   # opens http://localhost:8765, then click "Start hand control"
+```
+
+On Windows use `python` instead of `python3`. macOS asks for camera permission the first time. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe.
+
+| Gesture | What it does |
+| --- | --- |
+| Two hands, pull apart or push together | Open or close the suit |
+| Pinch (thumb and index) and drag | Orbit the robot |
+| Quick pinch | Click: select a part, press a button, set the slider |
+| Fist, then open the hand | Open the suit all the way |
+| Open hand, then a fist | Close the suit |
+| Flick an open palm sideways | Switch between the two robots |
+
+The point between your thumb and index finger is the cursor, drawn as a ring over the viewer. A small picture-in-picture shows what the tracker sees.
+
+Options: `--demo` (simulated hands, no camera), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
+
+Privacy and safety: only the 21 hand points per hand reach the page, never camera frames. The server listens on `127.0.0.1` only and refuses any page that is not its own, so other websites cannot switch your camera on. The camera turns off when you press Stop or close the tab.
+
+Hand control needs the local copy. The hosted artifact cannot reach `localhost`, so there the button explains how to run the script.
+
 ## Controls
 
 | Action | Mouse / trackpad | Touch |
@@ -53,7 +81,9 @@ src/
   kit.js         Builder API, material presets for both looks, moulded-panel geometry
   lib.js         Reusable components (wheel, roller, tank, LiDAR, pump, ...)
   data/          One file per robot: parts, geometry, explode vectors, specs, sources
+  jarvis.js      Hand control client: WebSocket, reticle cursor, picture-in-picture
   body.html, style.css
+jarvis.py        Hand tracking server (MediaPipe) and gesture engine
 ```
 
 To add a part, add an object to a robot's `parts` array with a `home` position, an `ex` explode offset, a `layer` (0 outermost to 3 innermost) and a `build(b)` function. To add a robot, create a data file like `data/phantas.js` and register it in `main.js`.

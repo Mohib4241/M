@@ -1,0 +1,4 @@
+# Hand control (jarvis.py)
+mediapipe
+opencv-python
+aiohttp

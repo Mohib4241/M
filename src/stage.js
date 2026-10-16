@@ -481,6 +481,12 @@ export class Stage {
     if (instant) { this.e = this.eT; this.ev = 0; }
   }
 
+  // Click at a screen point, as if the pointer had tapped there (used by hand control).
+  pickAt(x, y) {
+    const hit = this._pick(x, y);
+    this.emit('pick', hit ? hit.def.id : null);
+  }
+
   _pick(x, y) {
     const rect = this.canvas.getBoundingClientRect();
     const ndc = new THREE.Vector2(((x - rect.left) / rect.width) * 2 - 1, -((y - rect.top) / rect.height) * 2 + 1);

@@ -61,6 +61,8 @@
       </div>
     </div>
     <div class="toggles" id="toggles">
+      <button class="tgl jbtn" id="jarvis-btn" aria-pressed="false">Start hand control</button>
+      <span id="jarvis-status" class="jstatus" aria-live="polite"></span>
       <button class="tgl" data-opt="xray" aria-pressed="true">X-ray shell</button>
       <button class="tgl" data-opt="labels" aria-pressed="true">Callouts</button>
       <button class="tgl" data-opt="water" aria-pressed="false">Water path</button>
@@ -68,6 +70,34 @@
       <button class="tgl" data-opt="bloom" aria-pressed="true">Glow</button>
       <button class="tgl" data-opt="rotate" aria-pressed="true">Orbit</button>
       <button class="tgl" id="focus-btn" aria-pressed="false">Focus view</button>
+    </div>
+  </section>
+
+  <div id="reticle" class="reticle" aria-hidden="true"></div>
+
+  <aside id="jarvis-pip" class="pip hud" aria-label="Hand tracking" hidden>
+    <canvas width="240" height="170"></canvas>
+    <div class="pip-head"><b>Hand tracking</b><span id="pip-mode" class="mono"></span></div>
+    <ul class="gest">
+      <li><b>Two hands</b> pull apart to open, push together to close</li>
+      <li><b>Pinch and drag</b> orbit the robot</li>
+      <li><b>Quick pinch</b> click a part or a button</li>
+      <li><b>Fist, then open</b> open the suit</li>
+      <li><b>Flick an open palm</b> switch robot</li>
+    </ul>
+  </aside>
+
+  <section id="jarvis-help" class="jhelp hud" role="dialog" aria-labelledby="jarvis-help-title" hidden>
+    <h2 id="jarvis-help-title">Start the hand-tracking script first</h2>
+    <p id="jarvis-help-body"></p>
+    <div id="jarvis-help-steps">
+      <pre><code>pip install mediapipe opencv-python aiohttp
+python3 jarvis.py</code></pre>
+      <p class="fine">Needs Python 3.9 or newer and a webcam. The script opens this viewer at http://localhost:8765. Camera frames stay in the script; only hand points reach the page.</p>
+    </div>
+    <div class="jhelp-actions">
+      <button class="btn" id="jarvis-help-copy">Copy commands</button>
+      <button class="btn" id="jarvis-help-close">Close</button>
     </div>
   </section>
 
