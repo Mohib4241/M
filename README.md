@@ -50,7 +50,7 @@ Privacy and safety: only the 21 hand points per hand reach the page, never camer
 
 ### Deploy on Render
 
-The viewer is a static site, so it deploys on Render's free static tier.
+The viewer is a static site, so it deploys as a Render Static Site (no server to run).
 
 1. Push this repo to GitHub (the branch you want to publish).
 2. On Render: **New**, **Static Site**, connect the repo and pick the branch.
@@ -67,7 +67,6 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 | "The camera needs a secure page" | Open the site over `https://` (the Render URL), not `http://` |
 | "Hand tracking could not load" | The build did not run (check the Build Command), or the hand model could not be fetched from Google; check the connection |
 | "Hand control cannot run in a preview" | Open the site in its own browser tab, not inside an embedded preview |
-| The first load after idle is slow | Free Render sites sleep when unused; the first visit wakes them |
 
 Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`).
 
