@@ -229,6 +229,22 @@ test('a boosted car is faster than top speed but never above 1.3 times it', () =
   assert.ok(c.vx < CAR.VMAX * 1.35 + 0.01, `boosted vx ${c.vx}`);
 });
 
+test('speed above the cap falls back to it soon after a boost ends', () => {
+  // a tier-3 boost tops out at 1.35 times top speed; once vmul is back to 1 the extra must be gone in about 2 s
+  const c = newCar(0, 0, 0);
+  c.vx = CAR.VMAX * 1.35;
+  for (let i = 0; i < Math.round(2 / DT); i++) stepCar(c, { throttle: 1, brake: 0, hand: 0, steer: 0, amul: 1, vmul: 1 }, DT);
+  assert.ok(c.vx < CAR.VMAX * 1.03, `vx ${c.vx} should be within 3% of top speed 2 s after the boost`);
+  assert.ok(c.vx > CAR.VMAX * 0.95, `vx ${c.vx} should not drop below top speed either`);
+});
+
+test('grass slows a fast robot to its lower cap instead of letting it carry its speed', () => {
+  const c = newCar(0, 0, 0);
+  c.vx = CAR.VMAX;
+  for (let i = 0; i < Math.round(3 / DT); i++) stepCar(c, { throttle: 1, brake: 0, hand: 0, steer: 0 }, DT, { grip: 0.45, vcap: 0.5 });
+  assert.ok(c.vx < CAR.VMAX * 0.55, `vx ${c.vx} on grass after 3 s`);
+});
+
 test('charge drains only after the 0.6 s grace, at 0.35 per second', () => {
   const d = newDrift();
   d.q = 2;

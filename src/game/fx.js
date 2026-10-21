@@ -200,6 +200,9 @@ export class Effects {
    * Advance by dt and emit for this frame. st: { car, time, racing, brake, pick, sucking, surf,
    * charge: the race's drift state ({ q, tier, vmul }), finished }.
    */
+  /** True while a wheel is throwing sparks off the kerb, so the sound can match what is seen. */
+  get onKerb() { return this.w[0].kerb || this.w[1].kerb; }
+
   update(dt, st) {
     const { time } = st;
     const c = st.car, m = this.model, r = this.r;

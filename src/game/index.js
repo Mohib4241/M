@@ -10,7 +10,7 @@ import { rng } from './rng.js';
 import { driverInput } from './ai.js';
 import { QualityGovernor, MODES } from './quality.js';
 import { TANK_MAX } from './dust.js';
-import { CHARGE_MAX, TIER_AT, tierOf, KERB_BAND } from './drift.js';
+import { CHARGE_MAX, TIER_AT, tierOf } from './drift.js';
 
 export const LAPS = 5;
 const SIM = 1 / 60;
@@ -286,7 +286,7 @@ function startLap(i) {
 
 function pause(on) {
   if (S.screen !== 'race' && S.screen !== 'pause') return;
-  if (on) { S.paused = true; showScreen('pause'); } else { S.paused = false; showScreen('race'); }
+  if (on) { S.paused = true; S.audio.stop(); showScreen('pause'); } else { S.paused = false; S.audio.start(); showScreen('race'); }
 }
 
 function endLap() {
@@ -371,8 +371,7 @@ function frame(now) {
     const tier = tierOf(R.drift.q);
     if (tier > (S.prevTier || 0)) S.audio.chime(tier); // the charge reached a new tier
     S.prevTier = tier;
-    const kd = Math.abs(R.player.d || 0);
-    if (kd >= KERB_BAND[0] && kd <= KERB_BAND[1] && Math.abs(R.player.car.vx) > 3) S.audio.crackle(1); // sparks off the kerb
+    if (S.scene?.fx.onKerb) S.audio.crackle(1); // sparks off the kerb: the same wheels that throw them
     updateHud(input);
   }
   if (S.bannerT > 0) { S.bannerT -= dt; if (S.bannerT <= 0) setBanner(''); }

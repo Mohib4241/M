@@ -161,6 +161,7 @@ export class RaceScene {
 
   // a flat ribbon following the centre line, from lateral offset d0 to d1 (both in units)
   _ribbon(d0, d1, y, { include = null, colorAt = null, uvU = (d) => (d + ROAD_W / 2) / ROAD_W, vScale = 1 / ROAD_W } = {}) {
+    if (d0 > d1) [d0, d1] = [d1, d0]; // keep the winding the same, so every face points up
     const road = this.road, N = road.n;
     const pos = [], uv = [], col = [];
     const pt = (i, d) => {
@@ -357,6 +358,7 @@ export class RaceScene {
     });
     this._camera(dt, opts);
     this._sunFollow(P);
+    pointScale.value = this.renderer.domElement.height / (2 * Math.tan(this.camera.fov * Math.PI / 360)); // pixels per unit at depth 1
 
     // lights and underglow follow what the robots are doing
     const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);
@@ -439,7 +441,9 @@ export class RaceScene {
       this.camPos.lerp(target, 1 - Math.exp(-dt * 7));
     }
     this.camera.position.copy(this.camPos);
-    this.camLook.set(c.x + fwd.x * 10, 2.2, c.z + fwd.z * 10); // look well ahead, so the horizon and skyline show
+    // racing: look well ahead, so the horizon and skyline show; in the finish orbit: at the robot
+    if (opts.finishView) this.camLook.set(c.x, 2.2, c.z);
+    else this.camLook.set(c.x + fwd.x * 10, 2.2, c.z + fwd.z * 10);
     this.camera.lookAt(this.camLook);
     // a boost opens the view a little and pulls the camera back
     const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);

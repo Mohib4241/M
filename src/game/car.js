@@ -10,6 +10,7 @@ export const CAR = {
   AMAX_F: 24, AMAX_R: 24, AMAX_R_DRIFT: 6, // grip limits (u/s^2); the rear lets go under the handbrake
   ENGINE: 14, VMAX: 13, // top speed 1.3 m/s, close to the CC1 Pro's published 1.2 m/s
   BRAKE: 20, HAND_DECEL: 3, ROLL: 0.5,
+  BLEED: 2, // 1/s: speed above the current cap (a boost that has ended, pavement, grass) falls off with a 0.5 s time constant
   STEER: 0.52, STEER_RATE: 2.6, // max wheel angle (rad) and how fast it turns
   RADIUS: 2.6, // for car-to-car contact
   H: 1 / 120, // fixed physics step
@@ -59,6 +60,7 @@ function integrate(c, inp, h, surf) {
   if (inp.brake > 0 && c.vx > 0) ax -= CAR.BRAKE * inp.brake;
   if (hand && speed > 0.2) ax -= CAR.HAND_DECEL * Math.sign(c.vx);
   if (speed > 0.05) ax -= CAR.ROLL * Math.sign(c.vx);
+  if (c.vx > vcap) ax -= CAR.BLEED * (c.vx - vcap);
 
   const prevVx = c.vx;
   c.vx += (ax + c.vy * c.r) * h;

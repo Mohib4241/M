@@ -129,7 +129,7 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; padding: 0; }
 .keys kbd { font: 500 11px var(--mono); padding: 0 4px; border: 1px solid var(--line-strong); color: var(--muted); }
 .gh { padding: 10px 18px 3px; font-size: 12px; color: var(--faint); display: flex; align-items: center; gap: 7px; }
 .gh i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
-.part { position: relative; display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; width: 100%; padding: 6px 18px 6px 16px; background: none; border: 0; border-left: 2px solid transparent; text-align: left; font-size: 14px; transition: background .12s; }
+.part { position: relative; display: grid; grid-template-columns: 19px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 6px 18px 6px 16px; background: none; border: 0; border-left: 2px solid transparent; text-align: left; font-size: 14px; transition: background .12s; }
 .part em { font: 400 11px var(--mono); font-style: normal; color: var(--faint); white-space: nowrap; }
 .part:hover, .part.hot { background: rgba(var(--accent-rgb), .08); }
 .part.sel { border-left-color: var(--accent); background: rgba(var(--accent-rgb), .15); color: var(--title); font-weight: 500; }
@@ -137,7 +137,7 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; padding: 0; }
 .part.mute { opacity: .35; }
 .part::before { content: ''; position: absolute; left: 0; top: 5px; bottom: 5px; width: 3px; background: var(--c, var(--accent)); opacity: .5; transition: opacity .12s; }
 .part:hover::before, .part.hot::before, .part.sel::before { opacity: 1; }
-.pips { display: inline-flex; gap: 2px; }
+.pips { display: inline-flex; gap: 2px; order: -1; } /* first column, a fixed width, so every row's pips line up */
 .pips b { width: 5px; height: 5px; background: var(--line-strong); }
 .pips b.on { background: var(--c, var(--accent)); }
 .gh em { margin-left: auto; font: 400 11px var(--mono); font-style: normal; color: var(--faint); }
@@ -409,7 +409,7 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
 .play-btn:active { transform: translateY(0) scale(.99); }
 .play-btn .flag { width: 28px; height: 28px; flex: none; }
 .play-text b { display: block; font: 700 16px/1.1 var(--display); letter-spacing: .06em; text-transform: uppercase; }
-.play-text small { display: block; margin-top: 3px; font: 500 11.5px/1.2 var(--body); opacity: .82; }
+.play-text small { display: block; margin-top: 3px; font: 500 11.5px/1.2 var(--body); }
 @media (max-width: 760px) {
   .g-robots { grid-template-columns: 1fr; }
   .g-keys { display: none; }
@@ -435,7 +435,7 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
 /* A short entrance: the children of the side panel and the dock rise in, the panels never move. */
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  #left > *, .dock > * { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; }
+  #left > *, .dock > * { animation: rise .6s cubic-bezier(.2, .7, .2, 1) backwards; } /* backwards, not both: a held end state would pin transform and block hover lifts */
   #left > :nth-child(2) { animation-delay: .06s; } #left > :nth-child(3) { animation-delay: .12s; }
   #left > :nth-child(4) { animation-delay: .18s; } #left > :nth-child(5) { animation-delay: .24s; }
   #left > :nth-child(n+6) { animation-delay: .3s; }
