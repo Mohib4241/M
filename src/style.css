@@ -441,3 +441,7 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
   #left > :nth-child(n+6) { animation-delay: .3s; }
   .dock > :nth-child(2) { animation-delay: .12s; }
 }
+
+/* Race mode: a small message at the bottom of the screen */
+.g-toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: rgba(7, 13, 19, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 3; white-space: nowrap; }
+.g-toast.show { opacity: 1; }

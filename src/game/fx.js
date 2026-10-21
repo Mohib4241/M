@@ -24,18 +24,22 @@ void main() {
   gl_PointSize = aAlpha < 0.003 ? 0.0 : min(180.0, aSize * uScale / -mv.z);
   gl_Position = projectionMatrix * mv;
 }`;
+// The colours are written as they should look on screen, so they are turned into linear light here
+// and the shared output conversion turns them back (or the post-processing pass does, when it runs
+// the scene in an HDR buffer). uGain above 1 makes a particle brighter than white, so it blooms.
 const FRAG_POINTS = `
-varying float vA; varying vec3 vC;
+uniform float uGain; varying float vA; varying vec3 vC;
 void main() {
   vec2 c = gl_PointCoord - 0.5; float d = dot(c, c) * 4.0;
   float a = smoothstep(1.0, 0.0, d) * vA;
   if (a < 0.01) discard;
-  gl_FragColor = vec4(vC, a); // the colours are written as they should appear, so no conversion
+  gl_FragColor = vec4(pow(vC, vec3(2.2)) * uGain, a);
+  #include <colorspace_fragment>
 }`;
 
 /** A fixed pool of point sprites with their own life, velocity, size and colour ramp. */
 class PointPool {
-  constructor(n, { additive = false, order = 3 } = {}) {
+  constructor(n, { additive = false, order = 3, gain = 1 } = {}) {
     this.n = n;
     this.next = 0;
     const f = (k = 1) => new Float32Array(n * k);
@@ -50,7 +54,7 @@ class PointPool {
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, fog: false,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      uniforms: { uScale: pointScale },
+      uniforms: { uScale: pointScale, uGain: { value: gain } },
       vertexShader: VERT_POINTS, fragmentShader: FRAG_POINTS,
     });
     this.points = new THREE.Points(geo, mat);
@@ -93,7 +97,7 @@ class PointPool {
 
 /** A ring buffer of flat quads laid on the road, each with its own colour, birth time and life. */
 class TrailRing {
-  constructor(max, { additive = false, y = 0.026, order = 1 } = {}) {
+  constructor(max, { additive = false, y = 0.026, order = 1, gain = 1 } = {}) {
     this.max = max;
     this.count = 0;
     this.dirty = false;
@@ -112,15 +116,19 @@ class TrailRing {
     const mat = new THREE.ShaderMaterial({
       transparent: true, depthWrite: false, fog: false, polygonOffset: true, polygonOffsetFactor: -2,
       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-      uniforms: { uTime: this.uTime },
+      uniforms: { uTime: this.uTime, uGain: { value: gain } },
       vertexShader: `attribute vec4 aCol; attribute float aBirth; attribute float aLife; uniform float uTime; varying vec4 vC;
         void main() {
           float f = clamp(1.0 - (uTime - aBirth) / aLife, 0.0, 1.0);
           vC = vec4(aCol.rgb, aCol.a * f * f);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }`,
-      fragmentShader: `varying vec4 vC;
-        void main() { if (vC.a < 0.01) discard; gl_FragColor = vC; }`,
+      fragmentShader: `uniform float uGain; varying vec4 vC;
+        void main() {
+          if (vC.a < 0.01) discard;
+          gl_FragColor = vec4(pow(vC.rgb, vec3(2.2)) * uGain, vC.a);
+          #include <colorspace_fragment>
+        }`,
     });
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.frustumCulled = false;
@@ -176,9 +184,9 @@ export class Effects {
     this.r = rng((seed || 1) * 131 + 17);
     this.group = new THREE.Group();
     this.skid = new TrailRing(700, { y: 0.026, order: 1 });
-    this.glow = new TrailRing(260, { y: 0.032, order: 2 });
+    this.glow = new TrailRing(260, { y: 0.032, order: 2, gain: 2.2 }); // brighter than white, so it blooms
     this.smoke = new PointPool(320, { order: 3 });
-    this.fire = new PointPool(220, { additive: true, order: 4 });
+    this.fire = new PointPool(220, { additive: true, order: 4, gain: 3 }); // flames and sparks bloom
     this.group.add(this.skid.mesh, this.glow.mesh, this.smoke.points, this.fire.points);
     // per wheel (index 0 = -x, 1 = +x): the last trail point, the smoke accumulator, kerb state, a road hint
     this.w = [0, 1].map(() => ({ sx: 0, sz: 0, st: 0, has: false, gx: 0, gz: 0, gt: 0, hasG: false, acc: 0, dust: 0, spark: 0, kerb: false, hint: null }));

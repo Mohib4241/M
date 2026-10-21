@@ -142,6 +142,7 @@ A small game over the same robots. Click **Race mode** in the left panel, choose
 | `A` / `D` | Steer left / right |
 | `Space` | Drift brake: the rear lets go, so you can slide round a bend. Hold it in a slide to charge a boost, let go to use it |
 | `Shift` (or `Ctrl`, or `Command`) | Pick up dust. Hold it over the dust in front of the robot; the grains go into the tank (150 at most) |
+| `G` | Graphics setting: Auto, High, Medium, Low (see below) |
 | `Esc` | Pause |
 
 Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of dust in the tank. The lap card and the final table show each lap.
@@ -149,6 +150,10 @@ Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of d
 **Drifting.** While the rear slides with `Space` held, a drift charge builds. The tyre trails change colour as it reaches each tier: blue, then amber, then pink. Let go of `Space` and the charge becomes a short boost (tier 1: 1.2 s, tier 2: 1.6 s, tier 3: 2.0 s) with flames from the tail. A drift also gives tyre smoke, skid marks that fade, a squealing tyre sound, and sparks when a wheel scrapes the kerb. The opponent never drifts or boosts.
 
 **The setting** is a night-time racing club: concrete barriers with chase lights, a start gantry, pit garages, grandstands full of spectators, a clubhouse and control tower in the infield, floodlight masts and a lit skyline. It is placed around each random road by distance from the track, so it fits every shape of loop. Sound is made in the browser (no audio files), so the first sound waits for your first key press or click.
+
+**Graphics.** The race is drawn into a floating-point (HDR) buffer, so neon, lamps, flames and sparks can be brighter than white and glow through a bloom pass. The robots are glossy race-painted copies of the same models (a body colour, dark trim, a number roundel and a side stripe), with headlights that throw a beam and a pool of light on the road, tail lights that brighten under the front brake, and an underglow. Their paint mirrors the club through a small reflection map drawn from just above the start line. At speed there is a soft radial blur, a colour split during a boost, and a vignette.
+
+`G` steps the setting through Auto, High, Medium and Low, and the choice is remembered in the browser (`armory-gfx`). **High** adds bloom, sharper pixels and a large shadow map. **Medium** drops bloom. **Low** drops all post-processing. **Auto** starts on High, ignores the first 2.5 seconds, and steps down a level whenever the frame rate stays under 28 for 1.5 seconds; it never steps back up on its own, so it cannot flip back and forth. The rule is in `game/quality.js` and is tested without a GPU.
 
 The game is a stylised model, not the real robot. Both robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. It needs a keyboard, so it does not run on phones.
 
@@ -191,7 +196,9 @@ src/
                  rules), club.js (where the racing club goes), clubscene.js (the club's
                  meshes), fx.js (smoke, trails, sparks, flames), textures.js (drawn
                  textures), audio.js (synthesised sound), scene3d.js and models.js (the
-                 scene and the robots as cars), index.js (screens, HUD, loop)
+                 scene and the robots as cars), livery.js (race paint, lights, decals),
+                 post.js (bloom and speed pass), quality.js (graphics level rule),
+                 index.js (screens, HUD, loop)
   body.html, style.css
 jarvis.py        Hand tracking server (MediaPipe) and gesture engine, for local use
 start.sh/.bat    One-command launcher: private .venv, install once, run jarvis.py
@@ -199,6 +206,6 @@ tests/           Gesture engine tests
 render.yaml      Render Blueprint (static site)
 ```
 
-Race mode has a test hook: open the page with `?racedebug` (for example `dist/index.html?racedebug=1`) and `window.__raceDbg` exposes the live race (`S.race`, `S.scene`, the renderer, the key reader and the line-following driver), so a script can step a whole lap without waiting for frames.
+Race mode has a test hook: open the page with `?racedebug` (for example `dist/index.html?racedebug=1`) and `window.__raceDbg` exposes the live race (`S.race`, `S.scene`, the renderer, the key reader and the line-following driver), so a script can step a whole lap without waiting for frames. In a script, `window.__armoryNoAdapt = true` (set before the page loads) turns off the automatic graphics step-down, so slow software rendering does not change the picture mid-test.
 
 To add a part, add an object to a robot's `parts` array with a `home` position, an `ex` explode offset, a `layer` (0 outermost to 3 innermost) and a `build(b)` function. To add a robot, create a data file like `data/phantas.js` and register it in `main.js`.

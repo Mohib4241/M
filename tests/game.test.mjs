@@ -10,6 +10,7 @@ import { DustField, NOZZLE, TANK_MAX } from '../src/game/dust.js';
 import { rng } from '../src/game/rng.js';
 import { newDrift, stepDrift, tierOf, onKerb, BOOST } from '../src/game/drift.js';
 import { layoutClub, clearance, rectsTouch, CLUB } from '../src/game/club.js';
+import { QualityGovernor, MODES } from '../src/game/quality.js';
 
 const DT = 1 / 60;
 
@@ -340,5 +341,45 @@ test('club layout is the same every time for the same road', () => {
   const a = layoutClub(makeRoad(9, { length: 650 })), b = layoutClub(makeRoad(9, { length: 650 }));
   assert.equal(a, b); // memoised
   assert.equal(a.garages.length, b.garages.length);
+});
+
+// ───────── graphics quality ─────────
+const frames = (g, secs, fps) => { let level = null; for (let i = 0; i < secs * fps; i++) { const r = g.update(1 / fps); if (r !== null) level = r; } return level; };
+
+test('quality: a steady 60 fps never lowers the graphics', () => {
+  const g = new QualityGovernor();
+  assert.equal(frames(g, 30, 60), null);
+  assert.equal(g.level, 2);
+});
+
+test('quality: slow frames drop one level at a time, down to low, and it never climbs back by itself', () => {
+  const g = new QualityGovernor();
+  const seen = [];
+  for (let i = 0; i < 20 * 15; i++) { const r = g.update(1 / 15); if (r !== null) seen.push(r); }
+  assert.deepEqual(seen, [1, 0]);
+  assert.equal(g.level, 0);
+  assert.equal(frames(g, 20, 120), null); // a fast machine afterwards changes nothing
+  assert.equal(g.level, 0);
+});
+
+test('quality: the start-up is ignored, and so are frames from a sleeping tab', () => {
+  const g = new QualityGovernor();
+  assert.equal(frames(g, 2.4, 10), null); // slow, but still inside the warm-up
+  assert.equal(g.level, 2);
+  const h = new QualityGovernor();
+  for (let i = 0; i < 50; i++) assert.equal(h.update(3), null); // 3 s frames: a hidden tab
+  assert.equal(h.level, 2);
+});
+
+test('quality: a fixed mode ignores frame time, and cycling visits every mode', () => {
+  const g = new QualityGovernor({ mode: 'medium' });
+  assert.equal(g.level, 1);
+  assert.equal(frames(g, 30, 5), null);
+  assert.equal(g.level, 1);
+  const seen = [];
+  for (let i = 0; i < MODES.length; i++) seen.push(g.cycle());
+  assert.deepEqual(seen, ['low', 'auto', 'high', 'medium']);
+  assert.equal(new QualityGovernor({ mode: 'low' }).level, 0);
+  assert.equal(new QualityGovernor({ mode: 'high' }).level, 2);
 });
 

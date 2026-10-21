@@ -8,6 +8,7 @@ import { readInput, attachKeys } from './input.js';
 import { GameAudio } from './audio.js';
 import { rng } from './rng.js';
 import { driverInput } from './ai.js';
+import { QualityGovernor, MODES } from './quality.js';
 import { TANK_MAX } from './dust.js';
 import { CHARGE_MAX, TIER_AT, tierOf, KERB_BAND } from './drift.js';
 
@@ -38,7 +39,7 @@ export function openRace(defs, hooks = {}) {
     seed: (Math.random() * 1e9) | 0,
     roads: [], lap: 0, results: [], race: null, scene: null,
     screen: 'robot', paused: false, acc: 0, last: performance.now(), raf: 0,
-    audio: new GameAudio(), sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
+    audio: new GameAudio(), gov: new QualityGovernor({ mode: savedMode() }), sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
   };
   S.oppId = otherRobot(S.robotId);
   S.detach = attachKeys();
@@ -107,7 +108,7 @@ function buildScene(spec, { skill } = {}) {
   S.scene?.dispose();
   const race = new Race(spec.road, { skill: skill ?? lapSkill(spec), dustSeed: spec.seed });
   S.race = race;
-  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], aiDef: S.defs[S.oppId] });
+  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], aiDef: S.defs[S.oppId], level: S.gov.level });
   onResize();
   S.mapBg = null;
 }
@@ -304,6 +305,25 @@ function nextLap() {
   else showScreen('final');
 }
 
+// the graphics setting is remembered between visits (separately from the viewer's look settings)
+const GFX_KEY = 'armory-gfx';
+function savedMode() {
+  try { const m = localStorage.getItem(GFX_KEY); return MODES.includes(m) ? m : 'auto'; } catch { return 'auto'; }
+}
+function saveMode(m) {
+  try { localStorage.setItem(GFX_KEY, m); } catch { /* private window: the setting just lasts for this visit */ }
+}
+
+let toastTimer = 0;
+/** A small message at the bottom of the screen, for things like the graphics setting. */
+function toast(text) {
+  const el = $('#g-toast', S.root);
+  el.textContent = text;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
 function setBanner(text, ms = 2600) {
   const b = $('#g-banner', S.root);
   b.textContent = text;
@@ -329,8 +349,13 @@ function onEvent(e) {
 function frame(now) {
   if (!S) return;
   S.raf = requestAnimationFrame(frame);
-  const dt = Math.min(0.05, Math.max(0, (now - S.last) / 1000));
+  const raw = Math.max(0, (now - S.last) / 1000); // the real frame time, for the quality governor
+  const dt = Math.min(0.05, raw);
   S.last = now;
+  if (S.scene && !window.__armoryNoAdapt) {
+    const lv = S.gov.update(raw);
+    if (lv !== null) { S.scene.setLevel(lv); toast(`Graphics lowered to keep the race smooth: ${S.gov.label}`); }
+  }
   const input = readInput();
   const R = S.race;
   if (S.screen === 'race' && !S.paused && R) {
@@ -516,9 +541,10 @@ function buildDom(root) {
       <div class="g-count" id="g-count" hidden></div>
       <div class="g-banner" id="g-banner" aria-live="polite"></div>
       <div class="g-card-s g-map"><canvas id="g-map" width="240" height="240" aria-label="Road map"></canvas></div>
-      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift (hold in a slide, let go to boost)</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>Esc</kbd> pause</span></div>
+      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift (hold in a slide, let go to boost)</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>G</kbd> graphics</span><span><kbd>Esc</kbd> pause</span></div>
     </div>
     <div class="g-screen" id="g-screen"></div>
+    <div class="g-toast" id="g-toast" role="status"></div>
     <button class="g-exit" id="g-exit" type="button">Back to viewer</button>`;
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
@@ -555,7 +581,14 @@ function act(name) {
 
 // Esc pauses and resumes; the rest of the keys are read by the race.
 addEventListener('keydown', (e) => {
-  if (!S || e.code !== 'Escape') return;
+  if (!S) return;
+  if (e.code === 'KeyG' && !e.repeat && !e.metaKey && !e.ctrlKey) { // G steps through the graphics settings
+    saveMode(S.gov.cycle());
+    S.scene?.setLevel(S.gov.level);
+    toast(`Graphics: ${S.gov.label}`);
+    return;
+  }
+  if (e.code !== 'Escape') return;
   if (S.screen === 'race') pause(true);
   else if (S.screen === 'pause') pause(false);
 });

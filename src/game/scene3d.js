@@ -3,7 +3,6 @@
 // chase camera. One renderer serves every lap; textures are made once (textures.js).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ROAD_W, KERB_W, PAVE_W } from './track.js';
 import { MOUTH, NOZZLE, TAKEN } from './dust.js';
 import { carModel } from './models.js';
@@ -11,6 +10,9 @@ import { CAR } from './car.js';
 import { layoutClub, CLUB } from './club.js';
 import { buildClub } from './clubscene.js';
 import { Effects } from './fx.js';
+import { RacePost } from './post.js';
+import { robotExtras } from './livery.js';
+import { tierOf } from './drift.js';
 import { clamp } from './rng.js';
 import { pointScale } from './pointscale.js';
 import {
@@ -34,29 +36,28 @@ export function createRenderer(canvas) {
 const SKY = { top: 0x0b1124, horizon: 0x2b3457, glow: 0xd9824f };
 
 export class RaceScene {
-  constructor(renderer, race, { playerDef, aiDef }) {
+  constructor(renderer, race, { playerDef, aiDef, level = 2 }) {
     this.race = race;
     this.road = race.road;
     this.renderer = renderer;
+    this.w = renderer.domElement.clientWidth || 1280;
+    this.h = renderer.domElement.clientHeight || 720;
 
     this.scene = new THREE.Scene();
     this.scene.fog = new THREE.Fog(SKY.horizon, 120, 460);
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 900);
     this.scene.add(this.camera);
-    const pm = new THREE.PMREMGenerator(renderer);
-    this.envTarget = pm.fromScene(new RoomEnvironment(), 0.04);
-    this.scene.environment = this.envTarget.texture;
-    pm.dispose();
-    this.scene.environmentIntensity = 0.5;
 
     this._sky();
     this._lights();
     this._ground();
     this._road();
     this._club();
+    this._reflections(); // after the world is built and before the robots join it
     this._cars(playerDef, aiDef);
     this._dust();
     this._mouth();
+    this.post = new RacePost(renderer, this.scene, this.camera);
     this.camPos = new THREE.Vector3();
     this.camLook = new THREE.Vector3();
     this.initCam = false;
@@ -64,6 +65,43 @@ export class RaceScene {
     this.time = 0;
     this.fov = 56;
     this.motion = { vx: 0, ax: 0, burn: 0 }; // body lean, nose dip and wheel burnout of the player's robot
+    this.aiVx = 0;
+    this.setLevel(level);
+  }
+
+  // The reflection probe: the finished club (barriers, neon, skyline, sky) is drawn into a small
+  // cube map from just above the start line, so the robots' glossy paint mirrors the place they
+  // race in, instead of a generic studio.
+  _reflections() {
+    try {
+      const p0 = this.road.pointAt(0);
+      const pm = new THREE.PMREMGenerator(this.renderer);
+      this.envTarget = pm.fromScene(this.scene, 0.02, 0.1, 900, { size: 256, position: new THREE.Vector3(p0.x, 4, p0.z) });
+      pm.dispose();
+      this.scene.environment = this.envTarget.texture;
+      this.scene.environmentIntensity = 1.0;
+    } catch (e) {
+      console.warn('reflection probe failed, continuing without it:', e && e.message);
+      this.envTarget = null;
+    }
+  }
+
+  /**
+   * Set the graphics level (see quality.js): 2 high (bloom), 1 medium (no bloom), 0 low (no
+   * post-processing). Changes the pixel ratio and the size of the shadow map to match.
+   */
+  setLevel(level) {
+    this.level = level;
+    this.post.bloom.enabled = level >= 2;
+    const size = level >= 2 ? 2048 : 1024;
+    if (this.sun.shadow.mapSize.x !== size) {
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.map = null;
+      this.sun.shadow.mapSize.set(size, size);
+    }
+    const pr = level >= 2 ? Math.min(window.devicePixelRatio || 1, 1.5) : 1;
+    if (this.renderer.getPixelRatio() !== pr) this.renderer.setPixelRatio(pr);
+    this.resize(this.w, this.h);
   }
 
   _sky() {
@@ -234,6 +272,11 @@ export class RaceScene {
     this.scene.add(this.playerModel.car, this.aiModel.car);
     this.fx = new Effects(this.playerModel, this.road, this.road.seed);
     this.scene.add(this.fx.group);
+    // racing numbers, headlights, tail lights and underglow (the paint is part of the model itself)
+    this.extras = {
+      player: robotExtras(this.playerModel, { id: playerDef.id, number: '01' }),
+      ai: robotExtras(this.aiModel, { id: aiDef.id, number: '02' }),
+    };
     // a soft dark pool under each robot so it sits on the road
     const shadowTex = cached('dot', dotTex);
     for (const key of ['player', 'ai']) {
@@ -280,9 +323,11 @@ export class RaceScene {
   }
 
   resize(w, h) {
+    this.w = w; this.h = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.post.setSize(w, h);
   }
 
   /** Put every visual in place for the current race state and draw one frame. */
@@ -312,7 +357,21 @@ export class RaceScene {
     });
     this._camera(dt, opts);
     this._sunFollow(P);
-    this.renderer.render(this.scene, this.camera);
+
+    // lights and underglow follow what the robots are doing
+    const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);
+    const aiAx = dt > 0 ? (A.vx - this.aiVx) / dt : 0;
+    this.aiVx = A.vx;
+    this.extras.player.update({ brake: !!opts.brake, speed: clamp(Math.abs(P.vx) / CAR.VMAX, 0, 1), tier: tierOf(race.drift.q), boost, time: this.time });
+    this.extras.ai.update({ brake: aiAx < -3, speed: clamp(Math.abs(A.vx) / CAR.VMAX, 0, 1), tier: 0, boost: 0, time: this.time });
+    this.post.set({ speed: opts.racing ? clamp(Math.abs(P.vx) / CAR.VMAX, 0, 1.3) : 0, boost, vignette: 0.28 + 0.18 * boost });
+    this.snapshot();
+  }
+
+  /** Draw the scene through the post-processing at the current level. A camera can be given (for pictures from a fixed view). */
+  snapshot(camera = null) {
+    if (this.level >= 1) this.post.render(0.016, camera);
+    else this.renderer.render(this.scene, camera || this.camera);
   }
 
   _placeCar(model, c, dt, motion) {
@@ -397,12 +456,16 @@ export class RaceScene {
 
   /** Free this lap's geometry and materials. The shared renderer and cached textures stay. */
   dispose() {
+    this.extras.player.dispose(); // these sit on the shared robot models, so they come off first
+    this.extras.ai.dispose();
+    this.post.dispose();
     this.scene.traverse((o) => {
       if (o.isInstancedMesh) o.dispose(); // frees the instance buffers, which dispose() on the geometry does not
       o.geometry?.dispose?.();
       const mats = Array.isArray(o.material) ? o.material : [o.material];
       for (const m of mats) m?.dispose?.();
     });
-    this.envTarget.dispose();
+    this.envTarget?.dispose();
+    this.sun.shadow.map?.dispose(); // the shadow map is a render target the light owns, not part of the graph
   }
 }

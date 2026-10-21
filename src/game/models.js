@@ -6,11 +6,14 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder } from '../kit.js';
+import { applyPaint } from './livery.js';
 
 // Drive wheel radius in units, from the wheel builders in each robot's data file
 export const WHEEL_R = { phantas: 0.62, cc1pro: 0.8 };
 
 const cache = new Map();
+// the parts whose position the lights and decals are placed from
+const KEY_PART = /^(side-(cover|shell)-[lr]|top-(cover|hood)|front-(cover|shell)|rear-(cover|shell)|bumper)$/;
 
 /** Geometry in the shape the merge needs: non-indexed, with position, normal and uv. */
 function plain(g) {
@@ -29,6 +32,7 @@ export function carModel(def) {
   const car = new THREE.Group();
   const buckets = new Map(); // material -> geometries to merge
   const wheels = { l: null, r: null };
+  const boxes = {}; // where the key parts are, in the car's own frame
 
   for (const pd of def.parts) {
     const b = new Builder(ctx);
@@ -45,6 +49,7 @@ export function carModel(def) {
     if (pd.rot0) holder.rotation.set(...pd.rot0);
     holder.add(b.group);
     holder.updateMatrixWorld(true);
+    if (KEY_PART.test(pd.id)) boxes[pd.id] = new THREE.Box3().setFromObject(holder);
 
     if (pd.id === 'wheel-l' || pd.id === 'wheel-r') {
       // keep wheels as their own objects, centred on the axle, so they can turn
@@ -82,15 +87,36 @@ export function carModel(def) {
 
   // rest the lowest part on the floor
   car.updateMatrixWorld(true);
-  const low = new THREE.Box3().setFromObject(car).min.y;
-  car.position.y = -low;
+  const local = new THREE.Box3().setFromObject(car); // in the car's own frame, before it is lifted onto the floor
+  car.position.y = -local.min.y;
   car.rotation.order = 'YXZ'; // yaw, then pitch and roll in the robot's own frame
+  applyPaint(shared, def.id);
+
   // where the drive wheels and the tail really are, for smoke, sparks and flames
   const wl = def.parts.find((x) => x.id === 'wheel-l'), box = new THREE.Box3().setFromObject(car);
+  // where the covers, roof, front and rear are, for the number decals, the lights and the underglow
+  const union = (re) => { const b = new THREE.Box3(); for (const [id, bx] of Object.entries(boxes)) if (re.test(id)) b.union(bx); return b.isEmpty() ? null : b; };
+  const side = union(/^side-/), roof = union(/^top-/), front = union(/^front-/), rear = union(/^rear-/);
+  const H = local.max.y - local.min.y, Ld = local.max.z - local.min.z;
+  const dims = {
+    sideX: side ? Math.max(Math.abs(side.min.x), Math.abs(side.max.x)) : (local.max.x - local.min.x) * 0.4,
+    sideY: side ? (side.min.y + side.max.y) / 2 : H * 0.45,
+    sideZ: side ? (side.min.z + side.max.z) / 2 : 0,
+    sideLen: side ? side.max.z - side.min.z : Ld * 0.7,
+    sideH: side ? side.max.y - side.min.y : H * 0.45,
+    roofY: roof ? roof.max.y : H * 0.8,
+    roofZ: roof ? (roof.min.z + roof.max.z) / 2 : 0,
+    roofD: roof ? roof.max.z - roof.min.z : Ld * 0.6,
+    frontZ: front ? front.max.z : local.max.z,
+    frontY: front ? front.min.y : H * 0.3,
+    rearZ: rear ? rear.min.z : local.min.z,
+    rearY: rear ? rear.min.y + (rear.max.y - rear.min.y) * 0.5 : H * 0.4,
+    footL: Ld,
+  };
   const wrap = {
     car, wheels, r: WHEEL_R[def.id] || 0.7,
     wheelX: Math.abs(wl?.home[0] ?? 2), wheelZ: wl?.home[2] ?? -0.7, // drive wheel offset from the centre
-    rearZ: box.min.z, height: box.max.y - box.min.y,
+    rearZ: box.min.z, height: box.max.y - box.min.y, dims,
   };
   cache.set(def.id, wrap);
   return wrap;
