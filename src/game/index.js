@@ -7,7 +7,9 @@ import { RaceScene, createRenderer } from './scene3d.js';
 import { readInput, attachKeys } from './input.js';
 import { GameAudio } from './audio.js';
 import { rng } from './rng.js';
+import { driverInput } from './ai.js';
 import { TANK_MAX } from './dust.js';
+import { CHARGE_MAX, TIER_AT, tierOf, KERB_BAND } from './drift.js';
 
 export const LAPS = 5;
 const SIM = 1 / 60;
@@ -270,6 +272,7 @@ function startLap(i) {
   S.acc = 0;
   S.paused = false;
   S.prev = null;
+  S.prevTier = 0;
   S.bannerT = 0;
   S.lapEnded = false;
   S.audio.start();
@@ -310,6 +313,10 @@ function setBanner(text, ms = 2600) {
 
 function onEvent(e) {
   if (e.type === 'pickup') S.audio.pulse(1);
+  if (e.type === 'boost') {
+    S.audio.boost(e.dur);
+    setBanner(`Drift boost${'!'.repeat(e.tier)}`, 1600);
+  }
   if (e.type === 'finish') {
     if (e.kind === 'player') setBanner(`You finished ${ordinal(e.place)}!`, 3000);
     else setBanner(`${S.defs[S.oppId].short} finished ${ordinal(e.place)}`, 2600);
@@ -336,6 +343,11 @@ function frame(now) {
       if (R.over) break;
     }
     if (R.over) endLap(); // the lap ends whenever the race says it is over, whatever the events did
+    const tier = tierOf(R.drift.q);
+    if (tier > (S.prevTier || 0)) S.audio.chime(tier); // the charge reached a new tier
+    S.prevTier = tier;
+    const kd = Math.abs(R.player.d || 0);
+    if (kd >= KERB_BAND[0] && kd <= KERB_BAND[1] && Math.abs(R.player.car.vx) > 3) S.audio.crackle(1); // sparks off the kerb
     updateHud(input);
   }
   if (S.bannerT > 0) { S.bannerT -= dt; if (S.bannerT <= 0) setBanner(''); }
@@ -345,11 +357,12 @@ function frame(now) {
       pick: racing && input.pick && R.room > 0,
       brake: racing && input.brake > 0,
       finishView: !racing,
+      racing,
     });
     const c = R.player.car;
     S.audio.update({
       speed: Math.abs(c.vx), drift: c.drift, sucking: racing && input.pick && R.room > 0 && R.dust.sucking > 0,
-      active: racing,
+      active: racing, boost: Math.max(0, Math.min(1, (R.drift.vmul - 1) / 0.2)),
     });
   }
 }
@@ -374,9 +387,15 @@ function updateHud(input) {
     c.drift > 0.4 ? '<span class="g-chip hot">Drift</span>' : '',
     input.pick && R.room > 0 ? '<span class="g-chip on">Pick-up on</span>' : '',
     R.room <= 0 ? '<span class="g-chip hot">Tank full</span>' : '',
+    R.drift.tier ? `<span class="g-chip boost t${R.drift.tier}">Boost</span>` : '',
   ].join('');
   setText('#g-chips', chips);
-  $('#g-bar', S.root).style.width = `${Math.min(1, ms / 1.3) * 100}%`;
+  $('#g-bar', S.root).style.width = `${Math.min(1, ms / (1.3 * R.drift.vmul)) * 100}%`; // the bar's full scale grows with a boost
+  const charge = $('#g-charge', S.root);
+  const tierNow = String(tierOf(R.drift.q));
+  if (charge.dataset.tier !== tierNow) charge.dataset.tier = tierNow;
+  charge.classList.toggle('boosting', R.drift.tier > 0);
+  $('#g-chargebar', S.root).style.width = `${(R.drift.tier > 0 ? 1 : R.drift.q / CHARGE_MAX) * 100}%`;
   setText('#g-time', fmtTime(Math.max(0, R.clock)));
   const ahead = P.finished ? P.place === 1 : P.p >= A.p;
   const place = P.finished ? ordinal(P.place) : ahead ? '1st' : '2nd';
@@ -468,6 +487,10 @@ function buildDom(root) {
         <div class="g-card-s g-speed">
           <div class="g-dial"><b id="g-speed" class="mono">0.0</b><small>m/s</small></div>
           <div class="g-meter thin"><i id="g-bar"></i></div>
+          <div class="g-charge" id="g-charge" data-tier="0">
+            <span>Drift charge <em>hold <kbd>Space</kbd> in a slide, let go to boost</em></span>
+            <div class="g-meter"><i id="g-chargebar"></i>${TIER_AT.map((t) => `<u style="left:${(t / CHARGE_MAX) * 100}%"></u>`).join('')}</div>
+          </div>
           <div class="g-chips" id="g-chips"></div>
         </div>
         <div class="g-card-s g-tank">
@@ -521,3 +544,9 @@ addEventListener('keydown', (e) => {
   if (S.screen === 'race') pause(true);
   else if (S.screen === 'pause') pause(false);
 });
+
+// For tests: opening the page with ?racedebug exposes the live race, so a test can step it directly
+// instead of waiting for frames (software rendering is far too slow to play a lap in real time).
+if (typeof location !== 'undefined' && /[?&]racedebug\b/.test(location.search)) {
+  window.__raceDbg = { get S() { return S; }, get renderer() { return renderer; }, readInput, driverInput };
+}

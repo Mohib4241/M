@@ -51,9 +51,10 @@ function integrate(c, inp, h, surf) {
   const rDot = (CAR.A * fF * cd - CAR.B * fR) / CAR.K;
 
   // along the car: engine, brake, handbrake, rolling resistance
-  const vcap = CAR.VMAX * surf.vcap;
+  // a drift boost (from the drift charge) raises engine force and top speed; both are 1 without one
+  const vcap = CAR.VMAX * surf.vcap * (inp.vmul ?? 1);
   let ax = 0;
-  if (inp.throttle > 0) ax += CAR.ENGINE * inp.throttle * Math.max(0, 1 - c.vx / vcap);
+  if (inp.throttle > 0) ax += CAR.ENGINE * (inp.amul ?? 1) * inp.throttle * Math.max(0, 1 - c.vx / vcap);
   // S is the front brake: it slows a moving robot and holds it at a stop, it never reverses
   if (inp.brake > 0 && c.vx > 0) ax -= CAR.BRAKE * inp.brake;
   if (hand && speed > 0.2) ax -= CAR.HAND_DECEL * Math.sign(c.vx);

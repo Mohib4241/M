@@ -64,10 +64,11 @@ function buildList() {
   let html = '';
   order = [];
   for (const g of groupsUsed) {
-    html += `<li class="gh" style="--c:${gcol(g)}"><i></i>${esc(GROUPS[g].label)}</li>`;
-    for (const p of def.parts.filter((x) => x.group === g)) {
+    const members = def.parts.filter((x) => x.group === g);
+    html += `<li class="gh" style="--c:${gcol(g)}"><i></i>${esc(GROUPS[g].label)}<em>${members.length}</em></li>`;
+    for (const p of members) {
       order.push(p.id);
-      html += `<li><button class="part" data-id="${p.id}" data-g="${g}"><span>${esc(p.name)}</span><em>${esc(p.tag)}</em></button></li>`;
+      html += `<li style="--c:${gcol(g)}"><button class="part" data-id="${p.id}" data-g="${g}"><span>${esc(p.name)}</span><span class="pips" title="${esc(CONF[p.conf].label)}" aria-hidden="true">${[1, 2, 3].map((i) => `<b class="${i <= CONF[p.conf].level ? 'on' : ''}"></b>`).join('')}</span><em>${esc(p.tag)}</em></button></li>`;
     }
   }
   $('#parts').innerHTML = html;
@@ -102,14 +103,27 @@ function srcList(keys) {
   return `<ul class="src">${keys.map((k, i) => `<li><span class="n">${i + 1}</span><a href="${esc(SOURCES[k].u)}" target="_blank" rel="noopener">${esc(SOURCES[k].t)}</a></li>`).join('')}</ul>`;
 }
 
+// Spec rows: a long value sits under its label instead of wrapping beside it.
+function kv(rows) { return rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd${String(v).length > 22 ? ' class="long"' : ''}>${esc(v)}</dd>`).join(''); }
+
+// Three headline numbers from a robot's published specs (the number and its unit only).
+function kpiTiles(d) {
+  const num = (v) => { const m = String(v).match(/^[\d.,–-]+(?:\s?[A-Za-zµ²/%]+)?/); return m ? m[0].trim() : v; };
+  const pick = (label) => d.stats.find(([k]) => k === label)?.[1];
+  const tiles = [['Weight', 'Weight'], ['Cleaning width', 'Sweep'], ['Runtime', 'Runtime']]
+    .map(([k, name]) => (pick(k) ? `<div class="kpi"><small>${esc(name)}</small><b>${esc(num(pick(k)))}</b></div>` : '')).join('');
+  return tiles ? `<div class="kpis" aria-hidden="true">${tiles}</div>` : '';
+}
+
 function showOverview() {
   const d = def;
   $('#detail').innerHTML = `
     <div class="d-kicker">${esc(d.maker)}</div>
     <h2 class="d-title">${esc(d.name)}</h2>
     <p class="d-blurb">${esc(d.blurb)}</p>
+    ${kpiTiles(d)}
     <div class="d-sec"><h3>Published specs</h3>
-      <dl class="kv">${d.stats.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+      <dl class="kv">${kv(d.stats)}</dl>
     </div>
     <div class="d-sec"><h3>Source notes</h3>
       <ul class="notes">${d.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>
@@ -132,7 +146,7 @@ function showPart(id) {
     <h2 class="d-title">${esc(p.name)}</h2>
     <div class="conf">${bars(conf.level)}<span><b style="font-weight:500">${esc(conf.label)}</b><small>${esc(conf.note)}</small></span></div>
     <p class="d-desc">${esc(p.desc)}</p>
-    <div class="d-sec"><h3>Specs</h3><dl class="kv">${p.specs.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>
+    <div class="d-sec"><h3>Specs</h3><dl class="kv">${kv(p.specs)}</dl></div>
     <div class="d-sec"><h3>Sources</h3>${srcList(p.src)}</div>
     <div class="d-nav"><button class="btn" id="prev">← Previous</button><button class="btn" id="next">Next →</button></div>`;
   $('#back').onclick = () => stage.select(null);

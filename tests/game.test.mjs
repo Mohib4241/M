@@ -8,6 +8,8 @@ import { driverInput } from '../src/game/ai.js';
 import { Race, COUNTDOWN } from '../src/game/race.js';
 import { DustField, NOZZLE, TANK_MAX } from '../src/game/dust.js';
 import { rng } from '../src/game/rng.js';
+import { newDrift, stepDrift, tierOf, onKerb, BOOST } from '../src/game/drift.js';
+import { layoutClub, clearance, rectsTouch, CLUB } from '../src/game/club.js';
 
 const DT = 1 / 60;
 
@@ -159,3 +161,184 @@ test('dust sits on the road and some gathers along the kerbs', () => {
   // a 30% share is placed on the kerbs, so more than the uniform share lands near the edges
   assert.ok(edge > field.n * 0.35 && edge < field.n * 0.6, `edge share ${edge / field.n}`);
 });
+
+// ───────── drift charge and boost ─────────
+// drive a drift for `secs` (Space held, steer, throttle), releasing Space at the end
+function driftRun({ secs, throttle = 1, steer = 0.7, v0 = 9, release = true }) {
+  const c = newCar(0, 0, 0); c.vx = v0;
+  const d = newDrift();
+  const tierAt = [null, null, null];
+  let started = 0, t = 0;
+  for (let i = 0; i < Math.round(secs / DT); i++, t += DT) {
+    stepCar(c, { throttle, brake: 0, hand: 1, steer, amul: d.amul, vmul: d.vmul }, DT);
+    stepDrift(d, c, 1, DT);
+    for (let k = 0; k < 3; k++) if (tierAt[k] === null && tierOf(d.q) >= k + 1) tierAt[k] = +t.toFixed(2);
+  }
+  if (release) started = stepDrift(d, c, 0, DT);
+  return { d, c, tierAt, started };
+}
+
+test('drift charge: a full-throttle drift reaches tiers 1, 2 and 3 at about 1.4, 2.9 and 4.4 s', () => {
+  const { tierAt } = driftRun({ secs: 5, release: false });
+  assert.ok(Math.abs(tierAt[0] - 1.4) < 0.3, `tier 1 at ${tierAt[0]}`);
+  assert.ok(Math.abs(tierAt[1] - 2.9) < 0.3, `tier 2 at ${tierAt[1]}`);
+  assert.ok(Math.abs(tierAt[2] - 4.4) < 0.3, `tier 3 at ${tierAt[2]}`);
+});
+
+test('partial throttle drifts too briefly to earn a boost', () => {
+  const { started } = driftRun({ secs: 6, throttle: 0.2 });
+  assert.equal(started, 0);
+});
+
+test('releasing after a tier-2 drift starts a boost that eases in and out', () => {
+  const c = newCar(0, 0, 0); c.vx = 9;
+  const d = newDrift();
+  for (let i = 0; i < Math.round(3 / DT); i++) { stepCar(c, { throttle: 1, brake: 0, hand: 1, steer: 0.7, amul: d.amul, vmul: d.vmul }, DT); stepDrift(d, c, 1, DT); }
+  const tier = stepDrift(d, c, 0, DT);
+  assert.equal(tier, 2);
+  assert.equal(d.tier, 2);
+  const mults = [];
+  for (let i = 0; i < Math.round(1.6 / DT); i++) {
+    stepDrift(d, c, 0, DT);
+    mults.push(d.amul);
+  }
+  const at = (s) => mults[Math.round(s / DT)];
+  assert.ok(Math.abs(mults[0] - 1) < 0.2, `start ${mults[0]}`);
+  assert.ok(Math.abs(Math.max(...mults) - BOOST[2].amul) < 1e-9, `peak ${Math.max(...mults)}`);
+  assert.ok(at(0.7) > 1.4, `mid ${at(0.7)}`);
+  assert.equal(d.tier, 0);
+  assert.equal(d.amul, 1);
+  assert.equal(d.vmul, 1);
+});
+
+test('the default input (no boost fields) is unchanged by the boost hook', () => {
+  const a = newCar(0, 0, 0), b = newCar(0, 0, 0);
+  const inp = { throttle: 0.8, brake: 0, hand: 1, steer: 0.5 };
+  for (let i = 0; i < 300; i++) {
+    stepCar(a, inp, DT);
+    stepCar(b, { ...inp, amul: 1, vmul: 1 }, DT);
+  }
+  assert.equal(a.vx, b.vx); assert.equal(a.z, b.z); assert.equal(a.psi, b.psi);
+});
+
+test('a boosted car is faster than top speed but never above 1.3 times it', () => {
+  const c = newCar(0, 0, 0);
+  for (let i = 0; i < 60 * 10; i++) stepCar(c, { throttle: 1, brake: 0, hand: 0, steer: 0, amul: 1.7, vmul: 1.3 }, DT);
+  assert.ok(c.vx > CAR.VMAX * 1.1, `boosted vx ${c.vx}`);
+  assert.ok(c.vx < CAR.VMAX * 1.35 + 0.01, `boosted vx ${c.vx}`);
+});
+
+test('charge drains only after the 0.6 s grace, at 0.35 per second', () => {
+  const d = newDrift();
+  d.q = 2;
+  const c = newCar(0, 0, 0); c.vx = 8; c.drift = 0;
+  for (let i = 0; i < Math.round(0.6 / DT); i++) stepDrift(d, c, 1, DT);
+  assert.ok(Math.abs(d.q - 2) < 0.01, `q during grace ${d.q}`);
+  for (let i = 0; i < Math.round(1 / DT); i++) stepDrift(d, c, 1, DT);
+  assert.ok(Math.abs(d.q - 1.65) < 0.02, `q after 1.6 s ${d.q}`);
+});
+
+test('no charge and no boost while Space is up, even in a slide', () => {
+  const c = newCar(0, 0, 0); c.vx = 10;
+  const d = newDrift();
+  let started = 0;
+  for (let i = 0; i < 60 * 8; i++) {
+    stepCar(c, { throttle: 1, brake: 0, hand: 0, steer: 1, amul: d.amul, vmul: d.vmul }, DT);
+    started += stepDrift(d, c, 0, DT);
+  }
+  assert.equal(started, 0);
+  assert.equal(d.q, 0);
+});
+
+test('the race emits a boost event only after a charged drift, and never on straight throttle', () => {
+  const road = makeRoad(4);
+  const race = new Race(road, { skill: 1 });
+  const boosts = [];
+  for (let i = 0; i < 60 * 25; i++) {
+    race.step(DT, { throttle: 1, steer: 0, hand: 0 });
+    for (const e of race.events) if (e.type === 'boost') boosts.push(e);
+  }
+  assert.equal(boosts.length, 0);
+});
+
+test('kerb band: a wheel on the kerb lip counts, a wheel on the road or the pavement does not', () => {
+  assert.ok(onKerb(8.0));
+  assert.ok(onKerb(-8.5));
+  assert.ok(!onKerb(7.0));
+  assert.ok(!onKerb(9.5));
+});
+
+test('the race emits a boost event when a charged drift is released', () => {
+  const road = makeRoad(4);
+  const race = new Race(road, { skill: 1 });
+  const boosts = [];
+  const run = (secs, input) => {
+    for (let i = 0; i < Math.round(secs / DT); i++) {
+      race.step(DT, input);
+      for (const e of race.events) if (e.type === 'boost') boosts.push(e);
+    }
+  };
+  run(3.1, {});                                         // countdown
+  run(2.5, { throttle: 1 });                            // build speed
+  run(3.2, { throttle: 1, steer: 0.7, hand: 1 });       // hold a drift
+  run(0.2, { throttle: 1, steer: 0, hand: 0 });         // release
+  assert.ok(boosts.length >= 1, 'a boost event came after the release');
+  assert.ok(boosts[0].tier >= 1 && boosts[0].dur > 0);
+});
+
+test('the opponent never gets a boost, so its lap times do not depend on the drift code', () => {
+  const road = makeRoad(11, { length: 640 });
+  const race = new Race(road, { skill: 0.95 });
+  let guard = 0;
+  while (!race.ai.finished && guard++ < 60 * 200) race.step(DT, {});
+  assert.ok(Math.abs(race.ai.time - 55) < 12, `ai lap ${race.ai.time}`);
+  assert.equal(race.drift.q, 0);
+});
+
+// ───────── racing club layout ─────────
+test('club layout: every part is present, nothing solid is near the track, and footprints are disjoint', () => {
+  const counts = { garages: [], stands: [], masts: [] };
+  for (let seed = 1; seed <= 20; seed++) {
+    const road = makeRoad(seed, { length: 600 + ((seed * 37) % 121) });
+    const t0 = performance.now();
+    const L = layoutClub(road);
+    const ms = performance.now() - t0;
+    assert.ok(ms < 150, `seed ${seed}: layout took ${ms.toFixed(0)} ms`);
+    assert.ok(L.clubhouse && L.tower, `seed ${seed}: clubhouse and tower`);
+    assert.ok(L.garages.length >= 3 && L.stands.length >= 3 && L.masts.length >= 1, `seed ${seed}: counts`);
+    assert.ok(L.lamps.length > 20, `seed ${seed}: lamps ${L.lamps.length}`);
+    for (const o of L.solids) {
+      // the robots reach about 24.5 from the centre line, so nothing solid may be closer than 25
+      assert.ok(clearance(o, road) >= 25, `seed ${seed}: ${o.kind} is ${clearance(o, road).toFixed(1)} from the track`);
+    }
+    for (let i = 0; i < L.solids.length; i++) {
+      for (let j = i + 1; j < L.solids.length; j++) {
+        assert.ok(!rectsTouch(L.solids[i], L.solids[j], 0), `seed ${seed}: ${L.solids[i].kind} overlaps ${L.solids[j].kind}`);
+      }
+    }
+    assert.ok(L.skyline.length >= 25 && L.skyline.length <= CLUB.SKYLINE, `skyline ${L.skyline.length}`);
+    counts.garages.push(L.garages.length); counts.stands.push(L.stands.length); counts.masts.push(L.masts.length);
+  }
+  const median = (a) => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  assert.ok(median(counts.stands) >= 4, `median stands ${median(counts.stands)}`);
+  assert.ok(median(counts.garages) >= 5, `median garages ${median(counts.garages)}`);
+});
+
+test('club layout: the barrier is left out only on the inside of a tight bend', () => {
+  const road = makeRoad(4, { length: 640 });
+  const L = layoutClub(road);
+  const tight = 1 / CLUB.BARRIER_MIN_RADIUS;
+  let gaps = 0;
+  for (let i = 0; i < road.n; i++) {
+    if (!L.barrierNeg[i]) { gaps++; assert.ok(road.k[i] > tight, 'a -d gap needs a tight bend with its centre on that side'); }
+    if (!L.barrierPos[i]) { gaps++; assert.ok(road.k[i] < -tight, 'a +d gap needs a tight bend with its centre on that side'); }
+  }
+  assert.ok(gaps < road.n * 0.2, `gaps ${gaps}`);
+});
+
+test('club layout is the same every time for the same road', () => {
+  const a = layoutClub(makeRoad(9, { length: 650 })), b = layoutClub(makeRoad(9, { length: 650 }));
+  assert.equal(a, b); // memoised
+  assert.equal(a.garages.length, b.garages.length);
+});
+

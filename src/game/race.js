@@ -4,6 +4,7 @@
 import { newCar, stepCar, contact } from './car.js';
 import { driverInput } from './ai.js';
 import { DustField, TANK_MAX } from './dust.js';
+import { newDrift, stepDrift, BOOST } from './drift.js';
 import { lapDelta, ROAD_W, KERB_W, PAVE_W } from './track.js';
 
 export const COUNTDOWN = 3; // seconds before the start signal
@@ -30,6 +31,7 @@ export class Race {
     this.placed = 0;
     this.dust = new DustField(road, dustSeed);
     this.tank = 0;
+    this.drift = newDrift(); // the player's drift charge and boost
 
     const p0 = road.pointAt(0);
     const psi0 = Math.atan2(p0.tx, p0.tz);
@@ -61,7 +63,12 @@ export class Race {
     const playerInput = P.finished
       ? { throttle: 0, brake: 0.4, hand: 0, steer: 0 } // roll to a stop after the line
       : { throttle: input.throttle || 0, brake: input.brake || 0, hand: input.hand ? 1 : 0, steer: input.steer || 0 };
+    // a boost from the last step reaches the physics as multipliers; the opponent never gets one
+    playerInput.amul = this.drift.amul;
+    playerInput.vmul = this.drift.vmul;
     this._drive(P, dt, playerInput);
+    const tier = stepDrift(this.drift, P.car, playerInput.hand, dt);
+    if (tier) this.events.push({ type: 'boost', tier, dur: BOOST[tier].dur });
     this._drive(A, dt, A.finished ? { throttle: 0, brake: 0.4, hand: 0, steer: 0 }
       : driverInput(A.car, this.road, A.hint, this.skill));
     contact(P.car, A.car);

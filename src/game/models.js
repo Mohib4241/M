@@ -84,7 +84,14 @@ export function carModel(def) {
   car.updateMatrixWorld(true);
   const low = new THREE.Box3().setFromObject(car).min.y;
   car.position.y = -low;
-  const wrap = { car, wheels, r: WHEEL_R[def.id] || 0.7 };
+  car.rotation.order = 'YXZ'; // yaw, then pitch and roll in the robot's own frame
+  // where the drive wheels and the tail really are, for smoke, sparks and flames
+  const wl = def.parts.find((x) => x.id === 'wheel-l'), box = new THREE.Box3().setFromObject(car);
+  const wrap = {
+    car, wheels, r: WHEEL_R[def.id] || 0.7,
+    wheelX: Math.abs(wl?.home[0] ?? 2), wheelZ: wl?.home[2] ?? -0.7, // drive wheel offset from the centre
+    rearZ: box.min.z, height: box.max.y - box.min.y,
+  };
   cache.set(def.id, wrap);
   return wrap;
 }

@@ -6,6 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder } from './kit.js';
 
 // Parts open in four waves, outermost first: shell → subsystems → internals → frame.
@@ -157,14 +158,18 @@ export class Stage {
     const tg = new THREE.PlaneGeometry(0.03, 0.22);
     const tm = this.ringMat.clone();
     tm.opacity = 0.5;
+    // 120 marks merged into one mesh, so the ring costs one draw call, not 120
+    const tickGeos = [], tmark = new THREE.Object3D();
     for (let i = 0; i < 120; i++) {
       const a = (i / 120) * Math.PI * 2;
-      const t = new THREE.Mesh(tg, tm);
-      t.position.set(Math.cos(a) * 9.4, 0, Math.sin(a) * 9.4);
-      t.rotation.set(-Math.PI / 2, 0, -a + Math.PI / 2);
-      if (i % 5 === 0) t.scale.y = 1.8;
-      ticks.add(t);
+      tmark.position.set(Math.cos(a) * 9.4, 0, Math.sin(a) * 9.4);
+      tmark.rotation.set(-Math.PI / 2, 0, -a + Math.PI / 2);
+      tmark.scale.set(1, i % 5 === 0 ? 1.8 : 1, 1);
+      tmark.updateMatrix();
+      tickGeos.push(tg.clone().applyMatrix4(tmark.matrix));
     }
+    ticks.add(new THREE.Mesh(mergeGeometries(tickGeos), tm));
+    tickGeos.forEach((x) => x.dispose());
     g.add(ticks);
     this.ticks = ticks;
 
