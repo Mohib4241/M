@@ -115,7 +115,7 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 3. Hard refresh the page (Ctrl+Shift+R, or Cmd+Shift+R on macOS).
 4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
-Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`).
+Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`) and the race logic tests (roads, driving and drift, the front brake, dust, and full laps).
 
 ## Controls
 
@@ -130,6 +130,23 @@ Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 
 | Reset | `R` or the reset button | Same |
 
 Toggles in the dock: X-ray shell, callouts, **water path** (animated flow from the clean tank, through the pump and brush deck, past the squeegee, into the recovery tank), assembly guides, glow (hologram look only), auto-orbit.
+
+## Race mode
+
+A small game over the same robots. Click **Race mode** in the left panel, choose a robot (the other one is your opponent), look at the five roads, then **Start race**. Each lap is one circuit of a random road, about a minute long, with bends of different tightness. The robot you did not choose races you on every lap. After five laps the most points wins.
+
+| Key | What it does |
+| --- | --- |
+| `W` | Go (throttle) |
+| `S` | Front brake: slows the robot and holds it at a stop. It does not reverse |
+| `A` / `D` | Steer left / right |
+| `Space` | Drift brake: the rear lets go, so you can slide round a bend |
+| `Shift` (or `Ctrl`, or `Command`) | Pick up dust. Hold it over the dust in front of the robot; the grains go into the tank (150 at most) |
+| `Esc` | Pause |
+
+Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of dust in the tank. The lap card and the final table show each lap.
+
+The game is a stylised model, not the real robot. Both robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. It needs a keyboard, so it does not run on phones.
 
 ## Where the data comes from
 
@@ -165,6 +182,9 @@ src/
   hands3d.js     3D holographic hands, pointing beam, two-hand tether (in the scene)
   handcam.js     In-browser camera + MediaPipe (WebAssembly) tracker
   gestures.js    Gesture engine (JavaScript port of the one in jarvis.py)
+  game/          Race mode: track.js (random roads), car.js (tyre grip and drift),
+                 ai.js (opponent), dust.js (vacuum), race.js (lap rules), scene3d.js
+                 and models.js (the robots as cars), index.js (screens, HUD, loop)
   body.html, style.css
 jarvis.py        Hand tracking server (MediaPipe) and gesture engine, for local use
 start.sh/.bat    One-command launcher: private .venv, install once, run jarvis.py

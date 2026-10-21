@@ -3,6 +3,7 @@ import { GROUPS, CONF, SOURCES } from './data/shared.js';
 import phantas from './data/phantas.js';
 import cc1pro from './data/cc1pro.js';
 import { initJarvis } from './jarvis.js';
+import { openRace, isRaceOpen } from './game/index.js';
 
 const ROBOTS = { phantas, cc1pro };
 const $ = (s, r = document) => r.querySelector(s);
@@ -256,7 +257,7 @@ $('#open-left').onclick = () => { const o = $('#left').classList.toggle('open');
 $('#open-right').onclick = () => { const mobile = matchMedia('(max-width: 1180px)').matches; if (!mobile) return; const o = !$('#right').classList.contains('open'); $('#right').classList.toggle('open', o); document.body.classList.toggle('sheet-open', o && matchMedia('(max-width: 860px)').matches); layoutInsets(); };
 
 addEventListener('keydown', (e) => {
-  if (e.target.closest('input, textarea')) return;
+  if (isRaceOpen() || e.target.closest('input, textarea')) return; // the race has the keys while it is open
   const k = e.key;
   if (k === 'ArrowUp' || k === '+' || k === '=') { stage.nudgeExplode(0.07); e.preventDefault(); }
   else if (k === 'ArrowDown' || k === '-' || k === '_') { stage.nudgeExplode(-0.07); e.preventDefault(); }
@@ -371,4 +372,10 @@ addEventListener('orientationchange', layoutInsets);
 useRobot('phantas');
 layoutInsets();
 initJarvis({ stage, app, $ });
+
+// Race mode runs on its own canvas, so the viewer's render loop pauses while it is open.
+$('#play-btn').onclick = () => openRace(ROBOTS, {
+  onOpen: () => stage.renderer.setAnimationLoop(null),
+  onClose: () => stage.renderer.setAnimationLoop((t) => stage._frame(t)),
+});
 window.__armory = { stage, useRobot, ROBOTS };
