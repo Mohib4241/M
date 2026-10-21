@@ -390,20 +390,21 @@ function updateHud(input) {
     R.drift.tier ? `<span class="g-chip boost t${R.drift.tier}">Boost</span>` : '',
   ].join('');
   setText('#g-chips', chips);
-  $('#g-bar', S.root).style.width = `${Math.min(1, ms / (1.3 * R.drift.vmul)) * 100}%`; // the bar's full scale grows with a boost
+  setRing($('#g-bar', S.root), ms / (1.3 * R.drift.vmul)); // the dial's full scale grows with a boost
   const charge = $('#g-charge', S.root);
   const tierNow = String(tierOf(R.drift.q));
   if (charge.dataset.tier !== tierNow) charge.dataset.tier = tierNow;
   charge.classList.toggle('boosting', R.drift.tier > 0);
-  $('#g-chargebar', S.root).style.width = `${(R.drift.tier > 0 ? 1 : R.drift.q / CHARGE_MAX) * 100}%`;
+  setRing($('#g-chargebar', S.root), R.drift.tier > 0 ? 1 : R.drift.q / CHARGE_MAX);
   setText('#g-time', fmtTime(Math.max(0, R.clock)));
   const ahead = P.finished ? P.place === 1 : P.p >= A.p;
   const place = P.finished ? ordinal(P.place) : ahead ? '1st' : '2nd';
   setText('#g-pos', place);
   const gap = Math.abs(P.p - A.p) * 0.1;
   setText('#g-gap', P.finished ? '' : `${ahead ? 'Ahead' : 'Behind'} by ${gap.toFixed(1)} m`);
-  setText('#g-dust', `${R.tank} / ${TANK_MAX}`);
-  $('#g-tankbar', S.root).style.width = `${(R.tank / TANK_MAX) * 100}%`;
+  setText('#g-dust', String(R.tank));
+  setRing($('#g-tankbar', S.root), R.tank / TANK_MAX);
+  $('#g-dustg', S.root).classList.toggle('full', R.room <= 0);
   // countdown
   const count = $('#g-count', S.root);
   let cText = '';
@@ -471,37 +472,51 @@ function drawMap() {
 
 // ───────────────────────── DOM ─────────────────────────
 
+// The round gauges are 270-degree arcs: 75 of the 100 units of a circle's length (pathLength 100),
+// started at the lower left and swept clockwise.
+const ARC = 75;
+const arc = (r, id, cls) => `<circle class="${cls}"${id ? ` id="${id}"` : ''} cx="60" cy="60" r="${r}" pathLength="100" stroke-dasharray="${cls === 'trk' ? ARC : 0} 100" transform="rotate(135 60 60)"/>`;
+/** A short mark on the outer arc where each drift tier starts. */
+function tierTicks() {
+  return TIER_AT.map((t) => {
+    const a = ((135 + (t / CHARGE_MAX) * 270) * Math.PI) / 180;
+    const p = (r) => `${(60 + Math.cos(a) * r).toFixed(1)}`, q = (r) => `${(60 + Math.sin(a) * r).toFixed(1)}`;
+    return `<line class="tick" x1="${p(49)}" y1="${q(49)}" x2="${p(58)}" y2="${q(58)}"/>`;
+  }).join('');
+}
+/** Fill an arc gauge to a fraction (0 to 1). */
+function setRing(el, frac) {
+  el.setAttribute('stroke-dasharray', `${(Math.max(0, Math.min(1, frac)) * ARC).toFixed(2)} 100`);
+}
+
 function buildDom(root) {
   root.dataset.built = '1';
   root.innerHTML = `
     <canvas id="game-gl" aria-label="Race view"></canvas>
     <div class="g-hud" id="g-hud" hidden>
-      <div class="g-top">
-        <div class="g-card-s g-lap"><small>Lap</small><b id="g-lap" class="mono">1 / 5</b><span id="g-road">Road 1</span></div>
-        <div class="g-card-s g-timer"><b id="g-time" class="mono">0:00.0</b><span id="g-target">About a minute</span></div>
-        <div class="g-card-s g-pos"><b id="g-pos">1st</b><span id="g-gap"></span></div>
+      <div class="g-corner left">
+        <div class="g-gauge g-speedo" id="g-charge" data-tier="0" title="Speed, and the drift charge round the outside">
+          <svg viewBox="0 0 120 120" aria-hidden="true">${arc(53, '', 'trk')}${arc(53, 'g-chargebar', 'val chg')}${tierTicks()}${arc(41, '', 'trk')}${arc(41, 'g-bar', 'val spd')}</svg>
+          <div class="g-readout"><b id="g-speed" class="mono">0.0</b><small>m/s</small></div>
+        </div>
+        <div class="g-chips" id="g-chips"></div>
+      </div>
+      <div class="g-card-s g-top">
+        <div class="g-lap"><small>Lap</small><b id="g-lap" class="mono">1 / 5</b><span id="g-road">Road 1</span></div>
+        <div class="g-timer"><b id="g-time" class="mono">0:00.0</b><span id="g-target">About a minute</span></div>
+        <div class="g-pos"><b id="g-pos">1st</b><span id="g-gap"></span></div>
+      </div>
+      <div class="g-corner right">
+        <div class="g-gauge g-dustg" id="g-dustg" title="Dust in the tank">
+          <svg viewBox="0 0 120 120" aria-hidden="true">${arc(50, '', 'trk')}${arc(50, 'g-tankbar', 'val')}</svg>
+          <div class="g-readout"><b id="g-dust" class="mono">0</b><small>/ ${TANK_MAX}</small></div>
+        </div>
+        <span class="g-cap">Dust · hold <kbd>Shift</kbd></span>
       </div>
       <div class="g-count" id="g-count" hidden></div>
       <div class="g-banner" id="g-banner" aria-live="polite"></div>
-      <div class="g-bottom">
-        <div class="g-card-s g-speed">
-          <div class="g-dial"><b id="g-speed" class="mono">0.0</b><small>m/s</small></div>
-          <div class="g-meter thin"><i id="g-bar"></i></div>
-          <div class="g-charge" id="g-charge" data-tier="0">
-            <span>Drift charge <em>hold <kbd>Space</kbd> in a slide, let go to boost</em></span>
-            <div class="g-meter"><i id="g-chargebar"></i>${TIER_AT.map((t) => `<u style="left:${(t / CHARGE_MAX) * 100}%"></u>`).join('')}</div>
-          </div>
-          <div class="g-chips" id="g-chips"></div>
-        </div>
-        <div class="g-card-s g-tank">
-          <span>Dust in the tank</span>
-          <b id="g-dust" class="mono">0 / 150</b>
-          <div class="g-meter"><i id="g-tankbar"></i></div>
-          <small>Hold <kbd>Shift</kbd> to pick up dust</small>
-        </div>
-        <div class="g-card-s g-map"><canvas id="g-map" width="240" height="240" aria-label="Road map"></canvas></div>
-      </div>
-      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift brake</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>Esc</kbd> pause</span></div>
+      <div class="g-card-s g-map"><canvas id="g-map" width="240" height="240" aria-label="Road map"></canvas></div>
+      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift (hold in a slide, let go to boost)</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>Esc</kbd> pause</span></div>
     </div>
     <div class="g-screen" id="g-screen"></div>
     <button class="g-exit" id="g-exit" type="button">Back to viewer</button>`;
