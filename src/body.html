@@ -3,6 +3,7 @@
   <svg id="leaders" aria-hidden="true"></svg>
   <div id="callouts" aria-hidden="true"></div>
   <div id="tip" role="tooltip" hidden></div>
+  <div id="alert-banner" class="alert-banner" role="status" hidden></div>
 
   <div class="topbar">
     <button class="btn-chip" id="open-left" aria-controls="left" aria-expanded="false">Parts</button>
@@ -30,6 +31,21 @@
       <button role="tab" class="robot-tab" data-robot="phantas" aria-selected="true"><span>Gausium</span><b>Phantas</b></button>
       <button role="tab" class="robot-tab" data-robot="cc1pro" aria-selected="false"><span>PUDU</span><b>CC1 Pro</b></button>
     </div>
+    <section class="intr" aria-label="Interruptions">
+      <div class="list-head">
+        <h2>Interruptions <span id="intr-count" class="mono"></span></h2>
+        <button class="link" id="intr-clear" type="button" hidden>Clear</button>
+      </div>
+      <div class="combo">
+        <button class="combo-btn" id="intr-btn" type="button" role="combobox" aria-haspopup="listbox" aria-expanded="false" aria-controls="intr-list" aria-label="Interruption. Choose one to see where it comes from on the robot.">
+          <span class="combo-dot" id="intr-dot"></span>
+          <span class="combo-text" id="intr-text">Choose an interruption…</span>
+          <svg class="combo-caret" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6l4.5 4.5L12.5 6"/></svg>
+        </button>
+        <ul class="combo-list" id="intr-list" role="listbox" aria-label="Interruptions" tabindex="-1" hidden></ul>
+      </div>
+      <p class="intr-basis" id="intr-basis"></p>
+    </section>
     <div class="list-head">
       <h2>Parts <span id="part-count" class="mono"></span></h2>
       <button class="link" id="clear-filter" hidden>Show all</button>

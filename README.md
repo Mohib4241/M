@@ -115,7 +115,7 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 3. Hard refresh the page (Ctrl+Shift+R, or Cmd+Shift+R on macOS).
 4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
-Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`) and the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps).
+Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on both robots, the counts match the workbook).
 
 ## Controls
 
@@ -128,8 +128,31 @@ Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 
 | Isolate a system | Group chips in the Parts list | Same |
 | Hide the panels | `F` or **Focus view** | Same |
 | Reset | `R` or the reset button | Same |
+| Point at where an interruption comes from | **Interruptions** dropdown (left panel) | Same |
 
 Toggles in the dock: X-ray shell, callouts, **water path** (animated flow from the clean tank, through the pump and brush deck, past the squeegee, into the recovery tank), assembly guides, glow (hologram look only), auto-orbit.
+
+## Interruptions
+
+The left panel has an **Interruptions** dropdown with every kind of interruption found in the fleet data workbook (`SBR_Data_21_Oct_2026.xlsx`, sheet "Interruptions": 827 events, 19 alarm codes, grouped into 14 types in 6 categories: Notice, Maintenance, Suction/airflow, Navigation interference, Location lost, Sensor error). Each entry shows its alarm code, a bar and a count. Choose one and the open robot points at where it comes from:
+
+- the part (or parts) **glow and pulse** in the category's colour, with a halo, ripples and a pin; related parts glow softly; everything else steps back;
+- the suit opens far enough to show it, and the camera frames it;
+- a banner on the stage names the **section** (for example Water system) and the **part** (Recovery tank), and a glowing callout with a leader line sits on the part;
+- the details panel shows the card: why it happens, where on the robot, and the figures from the workbook (events, share of that model's interruptions, typical alarm length, longest alarm), with the alarm wording and codes;
+- it works the other way round too: a part's own panel lists the interruptions that come from it, and choosing one there makes it glow.
+
+The choice carries over when you switch robot or look, so you can compare the Phantas and the CC1 Pro. Keyboard: arrow keys, `Home`, `End` and `Enter` in the list, `Esc` to close it, and `Esc` again to put the glow away.
+
+What the data can and cannot say:
+
+- The workbook covers three models: **Phantas** (472 events), **Omnie** (245) and **Whiz** (110). It has **no CC1 Pro rows**, so for the CC1 Pro the counts are for every model in the workbook, and the page says so. The parts are still matched on the CC1 Pro, by what they do.
+- The workbook names the alarm, not the part. Which part an alarm points to is a mapping written by hand in `src/data/interruptions.js`, by what each part does. Where a robot has no part of exactly that kind (the CC1 Pro has no anti-drop sensor, neither robot has a separate suction pipe), the nearest part is used and marked "Nearest match".
+- Alarm length is the time the alarm stayed open, not necessarily downtime. A few alarms stayed open for days (the longest is about 167 hours), so the card shows the median and the longest, not an average.
+- The time stamps in the workbook mix formats (some day/month swapped, some after the file's own date), so dates and trends are not used.
+- Only aggregates are published: alarm code, category, wording and alarm lengths per model. Site names, robot serial numbers and time stamps are not in the page or the repository.
+
+To use newer data: `pip install openpyxl`, then `python3 scripts/interruptions_from_xlsx.py path/to/workbook.xlsx` rewrites `src/data/interruption-stats.js`, and `npm run build`. A new alarm code needs a line in `TYPES` in `src/data/interruptions.js` (the tests fail until every code has a type and every type points at real parts on both robots).
 
 ## Race mode
 
@@ -193,7 +216,10 @@ src/
                  pinch/scroll input
   kit.js         Builder API, material presets for both looks, moulded-panel geometry
   lib.js         Reusable components (wheel, roller, tank, LiDAR, pump, ...)
-  data/          One file per robot: parts, geometry, explode vectors, specs, sources
+  data/          One file per robot: parts, geometry, explode vectors, specs, sources;
+                 interruptions.js (alarm types and which parts they point at),
+                 interruption-stats.js (generated from the workbook, aggregates only)
+  interruption-ui.js  The Interruptions dropdown, banner and card
   jarvis.js      Hand control client: picks the source, reticle cursor, picture-in-picture
   hands3d.js     3D holographic hands, pointing beam, two-hand tether (in the scene)
   handcam.js     In-browser camera + MediaPipe (WebAssembly) tracker

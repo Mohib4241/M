@@ -21,6 +21,34 @@ const smooth = (x, a, b) => { const t = clamp((x - a) / (b - a), 0, 1); return t
 const easeInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const damp = (dt, k) => 1 - Math.exp(-dt * k);
 
+// Soft shapes for the alert markers, drawn once and tinted per alert.
+let _alertTex;
+function alertTextures() {
+  if (_alertTex) return _alertTex;
+  const make = (draw) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    draw(c.getContext('2d'));
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  };
+  const radial = (g, stops) => {
+    const r = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    for (const [o, a] of stops) r.addColorStop(o, `rgba(255,255,255,${a})`);
+    g.fillStyle = r; g.fillRect(0, 0, 128, 128);
+  };
+  _alertTex = {
+    halo: make((g) => radial(g, [[0, 0.95], [0.35, 0.5], [0.7, 0.14], [1, 0]])),
+    ring: make((g) => radial(g, [[0, 0], [0.6, 0], [0.74, 0.95], [0.84, 0.35], [1, 0]])),
+    pin: make((g) => { // a downward arrow head with a soft edge
+      g.shadowColor = '#fff'; g.shadowBlur = 10; g.fillStyle = '#fff';
+      g.beginPath(); g.moveTo(26, 30); g.lineTo(102, 30); g.lineTo(64, 100); g.closePath(); g.fill();
+    }),
+  };
+  return _alertTex;
+}
+
 export class Stage {
   constructor(canvas, { look = 'studio' } = {}) {
     this.canvas = canvas;
@@ -40,6 +68,8 @@ export class Stage {
     this.selected = null;
     this.hovered = null;
     this.groupFilter = null;
+    this.alert = null; // parts being pointed at (see setAlert)
+    this.alertSpec = null; // what to point at again after the robot is rebuilt
     this.userZoom = 1;
     this.insets = { left: 0, right: 0, bottom: 0 };
     this.lastInput = 0;
@@ -69,6 +99,8 @@ export class Stage {
     r.shadowMap.enabled = true;
     r.shadowMap.type = THREE.PCFShadowMap;
     this.scene = new THREE.Scene();
+    this.alertGroup = new THREE.Group(); // glow markers for setAlert
+    this.scene.add(this.alertGroup);
     this.scene.background = new THREE.Color(0x02060b);
     this.scene.fog = new THREE.FogExp2(0x02060b, 0.011);
     this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 400);
@@ -371,6 +403,7 @@ export class Stage {
     this.cam.az = this.cam.azC = keep.az; this.cam.el = this.cam.elC = keep.el; this.userZoom = keep.zoom;
     this.groupFilter = keep.group;
     if (keep.sel) this.selected = this.partById.get(keep.sel) || null;
+    if (this.alertSpec) this.setAlert(this.alertSpec, { reveal: false });
     this._update(0.016);
     this.snapCamera();
     this.emit('look', look);
@@ -397,6 +430,8 @@ export class Stage {
       this.robot.traverse((o) => { o.geometry?.dispose?.(); });
     }
     if (this.guides) { this.scene.remove(this.guides); this.guides.geometry.dispose(); }
+    this._disposeAlertFx();
+    this.alert = null; // the parts it pointed at are gone; setAlert again if it should carry on
     this.def = def;
     const tone = this.look === 'studio' && def.studio ? def.studio : def;
     this._setAccent(tone.accent, tone.accent2);
@@ -421,7 +456,7 @@ export class Stage {
       robot.add(root);
       const p = {
         def: pd, root, b, home: new THREE.Vector3(...pd.home), ex: new THREE.Vector3(...pd.ex),
-        t: 0, dim: 1, glow: 0, anchorLocal: new THREE.Vector3(), radius: 1, spinners: [], liquids: [],
+        t: 0, dim: 1, glow: 0, alertT: 0, alertK: 0, anchorLocal: new THREE.Vector3(), radius: 1, spinners: [], liquids: [],
       };
       for (const m of b.meshes) m.userData.part = p;
       b.group.traverse((o) => {
@@ -594,6 +629,90 @@ export class Stage {
     this.emit('select', p ? p.def.id : null);
   }
 
+  /**
+   * Point at parts with a glow. spec: { main: [part ids], rel: [part ids], color: '#hex' }, or null to
+   * stop. The main parts glow and pulse, with a halo, ripples and a pin; the related parts glow
+   * softly; everything else dims, so the glow stands out. The suit opens far enough to show the main
+   * parts, and the camera frames them.
+   */
+  setAlert(spec, { reveal = true } = {}) {
+    this._disposeAlertFx();
+    for (const p of this.parts) p.alertT = 0;
+    const main = spec ? (spec.main || []).map((id) => this.partById.get(id)).filter(Boolean) : [];
+    if (!main.length) {
+      this.alert = null;
+      this.alertSpec = null;
+      this.emit('alert', null);
+      return;
+    }
+    const rel = (spec.rel || []).map((id) => this.partById.get(id)).filter((p) => p && !main.includes(p));
+    for (const p of main) p.alertT = 1;
+    for (const p of rel) p.alertT = 0.45;
+    this.alertSpec = spec;
+    const color = new THREE.Color(spec.color || '#ff3d3d');
+    this.alert = { main, rel, color, t0: this.time, fx: this._makeAlertFx(main, color) };
+    if (reveal) {
+      this.eT = Math.max(this.eT, ...main.map((p) => REVEAL[p.def.layer]));
+      this._introHold = 0;
+    }
+    this.emit('alert', main.map((p) => p.def.id));
+  }
+
+  _makeAlertFx(main, color) {
+    const T = alertTextures(), studio = this.look === 'studio';
+    const blending = studio ? THREE.NormalBlending : THREE.AdditiveBlending;
+    const gain = studio ? 1 : 2.4; // above 1 so the glow pass picks it up
+    const sprite = (map) => {
+      const m = new THREE.SpriteMaterial({ map, color: color.clone().multiplyScalar(gain), transparent: true, opacity: 0, depthTest: false, depthWrite: false, blending, toneMapped: false });
+      const s = new THREE.Sprite(m);
+      s.renderOrder = 40;
+      s.visible = false;
+      this.alertGroup.add(s);
+      return s;
+    };
+    return main.map((part) => ({ part, vis: 0, v: new THREE.Vector3(), halo: sprite(T.halo), rings: [sprite(T.ring), sprite(T.ring)], pin: sprite(T.pin) }));
+  }
+
+  _disposeAlertFx() {
+    const al = this.alert;
+    if (!al) return;
+    for (const f of al.fx) for (const s of [f.halo, f.pin, ...f.rings]) { this.alertGroup.remove(s); s.material.dispose(); }
+  }
+
+  // The markers follow their parts as the suit opens, pulse, and fade while the part is dimmed away.
+  _alertFx(dt) {
+    const al = this.alert;
+    if (!al) return;
+    const studio = this.look === 'studio';
+    const t = this.time - al.t0;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 5.2);
+    const fade = smooth(t, 0, 0.35);
+    for (const f of al.fx) {
+      const p = f.part;
+      f.vis += ((p.root.visible && p.dim > 0.3 ? 1 : 0) - f.vis) * damp(dt, 8);
+      const on = f.vis * fade;
+      for (const s of [f.halo, f.pin, ...f.rings]) s.visible = on > 0.01;
+      if (on <= 0.01) continue;
+      p.root.localToWorld(f.v.copy(p.anchorLocal));
+      // sized to the part but never huge: a big tank must not flood the view
+      const r = clamp(p.radius * 0.9, 0.9, 3);
+      f.halo.position.copy(f.v);
+      const hs = r * (2.3 + 0.4 * pulse);
+      f.halo.scale.set(hs, hs, 1);
+      f.halo.material.opacity = on * (0.42 + 0.24 * pulse) * (studio ? 0.55 : 1);
+      f.rings.forEach((ring, i) => {
+        const ph = (t * 0.85 + i * 0.5) % 1; // two ripples, half a cycle apart
+        const rs = r * (1.1 + 2.2 * ph);
+        ring.position.copy(f.v);
+        ring.scale.set(rs, rs, 1);
+        ring.material.opacity = on * Math.pow(1 - ph, 1.4) * 0.95;
+      });
+      f.pin.position.set(f.v.x, f.v.y + r * 1.1 + 0.9 + 0.22 * Math.sin(t * 3.4), f.v.z);
+      f.pin.scale.set(1.5, 1.5, 1);
+      f.pin.material.opacity = on * 0.95;
+    }
+  }
+
   hover(id) {
     const p = id ? this.partById.get(id) : null;
     if (p !== this.hovered) { this.hovered = p; this.emit('hover', p ? p.def.id : null); }
@@ -725,6 +844,7 @@ export class Stage {
     this._guides();
     this._water(dt);
     this._ambient(dt);
+    this._alertFx(dt);
     this._camera(dt);
     this._hover();
     this.camera.updateMatrixWorld();
@@ -732,13 +852,17 @@ export class Stage {
   }
 
   _visuals(dt) {
-    const sel = this.selected, hov = this.hovered, gf = this.groupFilter;
+    const sel = this.selected, hov = this.hovered, gf = this.groupFilter, al = this.alert;
     const studio = this.look === 'studio';
     const xr = this.opts.xray ? smooth(this.e, 0.03, 0.3) : 0;
+    const apulse = al ? 0.5 + 0.5 * Math.sin((this.time - al.t0) * 5.2) : 0;
     for (const p of this.parts) {
       let target = 1;
-      if (sel) target = p === sel ? 1 : 0.09;
+      if (sel) target = p === sel ? 1 : p.alertT > 0 ? 0.55 : 0.09; // pointed-at parts stay visible beside a selection
       else if (gf) target = p.def.group === gf ? 1 : 0.09;
+      else if (al) target = p.alertT > 0 ? 1 : 0.14; // everything else steps back, the shell included
+      p.alertK += (p.alertT - p.alertK) * damp(dt, 8);
+      const ak = p.alertK;
       p.dim += (target - p.dim) * damp(dt, 10);
       const gt = p === sel ? 1 : p === hov ? 0.65 : 0;
       p.glow += (gt - p.glow) * damp(dt, 12);
@@ -750,16 +874,27 @@ export class Stage {
         r.mat.depthWrite = o > 0.62 && !r.glass;
         if (p.glow > 0.01) r.mat.emissive.copy(r.emissive).lerp(this.accent, p.glow * (studio ? 0.2 : 0.5) * pulse);
         else r.mat.emissive.copy(r.emissive);
+        if (r.ei === undefined) r.ei = r.mat.emissiveIntensity;
+        if (ak > 0.01 && al) {
+          // a pulsing glow in the alert's colour, brighter than white on the main parts so the glow pass blooms it
+          const heat = ak * (0.6 + 0.4 * apulse);
+          r.mat.emissive.lerp(al.color, Math.min(1, heat * (studio ? 0.9 : 0.8)));
+          r.mat.emissiveIntensity = r.ei + ak * apulse * (studio ? 0.5 : 1.8);
+        } else if (r.mat.emissiveIntensity !== r.ei) r.mat.emissiveIntensity = r.ei;
       }
       for (const em of p.b.edgeMats) {
+        const lit = Math.max(p.glow, ak); // the outline lights up for the selected, the hovered and the pointed-at
         if (em.userData.studio) {
-          // outline only the selected or hovered part
-          em.opacity = em.userData.base * p.glow * p.dim;
+          // outline only the selected, hovered or pointed-at part
+          em.opacity = em.userData.base * lit * p.dim;
+          if (ak > 0.01 && al) em.color.copy(em.userData.col).lerp(al.color, ak * 0.9);
+          else if (em.userData.col) em.color.copy(em.userData.col);
           continue;
         }
-        const boost = 1 + p.glow * 0.9;
+        const boost = 1 + lit * 0.9;
         em.opacity = Math.min(1, em.userData.base * p.dim * boost);
         em.color.copy(em.userData.col).lerp(WHITE, p.glow * 0.55);
+        if (ak > 0.01 && al) em.color.lerp(al.color, ak * 0.85);
       }
       // dimmed or X-rayed shell parts stop casting shadows
       if (studio) {
@@ -780,7 +915,7 @@ export class Stage {
     }
     pos.needsUpdate = true;
     this.guides.computeLineDistances();
-    const on = this.opts.guides && !this.selected;
+    const on = this.opts.guides && !this.selected && !this.alert; // the dashed guides add noise while a glow is pointing
     this.guides.visible = on;
     this.guideMat.opacity = (this.look === 'studio' ? 0.5 : 0.4) * smooth(this.e, 0.02, 0.2) * (this.groupFilter ? 0.4 : 1);
   }
@@ -904,6 +1039,19 @@ export class Stage {
       tx = w.x; ty = w.y; tz = w.z;
       const aspect = Math.max(0.3, (this.W - this.insets.left - this.insets.right) / Math.max(1, this.H - this.insets.bottom));
       dist = clamp(sel.radius * 3.5 + 5, 8.5, 22) * Math.max(1, 0.6 / aspect) * this.userZoom;
+    }
+
+    else if (this.alert) {
+      // frame the pointed-at parts: their centre, and far enough back to hold them all
+      const A = this.alert.main, c0 = this._alertC || (this._alertC = new THREE.Vector3());
+      c0.set(0, 0, 0);
+      for (const p of A) c0.add(this.anchorWorld(p));
+      c0.multiplyScalar(1 / A.length);
+      let rad = 0;
+      for (const p of A) rad = Math.max(rad, this.anchorWorld(p).distanceTo(c0) + p.radius * 0.7);
+      tx = c0.x; ty = c0.y; tz = c0.z;
+      const aspect = Math.max(0.3, (this.W - this.insets.left - this.insets.right) / Math.max(1, this.H - this.insets.bottom));
+      dist = clamp(rad * 3 + 5.5, 9, 30) * Math.max(1, 0.6 / aspect) * this.userZoom;
     }
 
     // auto-orbit when idle

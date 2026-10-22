@@ -4,6 +4,7 @@ import phantas from './data/phantas.js';
 import cc1pro from './data/cc1pro.js';
 import { initJarvis } from './jarvis.js';
 import { openRace, isRaceOpen } from './game/index.js';
+import { initInterruptions } from './interruption-ui.js';
 
 const ROBOTS = { phantas, cc1pro };
 const $ = (s, r = document) => r.querySelector(s);
@@ -52,6 +53,7 @@ function useRobot(id, { intro = true } = {}) {
   stage.loadRobot(def, { intro });
   buildList();
   buildCallouts();
+  intr.onRobot(); // an interruption that is on points at the same thing on this robot's parts
   showOverview();
   $('#explode').value = stage.eT;
   hint(true);
@@ -116,6 +118,7 @@ function kpiTiles(d) {
 }
 
 function showOverview() {
+  if (intr.renderCard($('#detail'))) { setSheet(false); return; } // an interruption is chosen: its card replaces the overview
   const d = def;
   $('#detail').innerHTML = `
     <div class="d-kicker">${esc(d.maker)}</div>
@@ -148,7 +151,9 @@ function showPart(id) {
     <p class="d-desc">${esc(p.desc)}</p>
     <div class="d-sec"><h3>Specs</h3><dl class="kv">${kv(p.specs)}</dl></div>
     <div class="d-sec"><h3>Sources</h3>${srcList(p.src)}</div>
+    ${intr.partSection(id)}
     <div class="d-nav"><button class="btn" id="prev">← Previous</button><button class="btn" id="next">Next →</button></div>`;
+  intr.bindPartSection($('#detail'));
   $('#back').onclick = () => stage.select(null);
   $('#prev').onclick = () => stage.select(order[(i - 1 + order.length) % order.length]);
   $('#next').onclick = () => stage.select(order[(i + 1) % order.length]);
@@ -277,7 +282,12 @@ addEventListener('keydown', (e) => {
   else if (k === 'ArrowDown' || k === '-' || k === '_') { stage.nudgeExplode(-0.07); e.preventDefault(); }
   else if (k === 'ArrowLeft') { stage.cam.az -= 0.12; stage.lastInput = stage.time; }
   else if (k === 'ArrowRight') { stage.cam.az += 0.12; stage.lastInput = stage.time; }
-  else if (k === 'Escape') { stage.select(null); $('#left').classList.remove('open'); }
+  else if (k === 'Escape') {
+    if (intr.isOpen()) intr.close();
+    else if (!stage.selected && intr.active()) intr.clear(); // nothing selected: Esc puts the glow away
+    else stage.select(null);
+    $('#left').classList.remove('open');
+  }
   else if (k === 'r' || k === 'R') $('#reset').click();
   else if (k === 'f' || k === 'F') setFocus(!app.classList.contains('focus'));
   else if (k === '[' ) stage.select(order[(Math.max(0, order.indexOf(stage.selected?.def.id)) - 1 + order.length) % order.length]);
@@ -308,20 +318,21 @@ function updateCallouts() {
   const cx = left + freeW / 2;
   const wide = freeW >= 680 && stage.opts.labels;
   const sel = stage.selected, hov = stage.hovered;
+  const pointed = stage.alert ? stage.alert.main : null; // parts an interruption points at
   const show = [];
   for (const p of stage.parts) {
-    const isSel = p === sel, isHov = p === hov;
-    const auto = wide && !sel && !stage.groupFilter && stage.e > 0.55 && p.t > 0.75;
+    const isSel = p === sel, isHov = p === hov, isAlert = !!pointed && pointed.includes(p);
+    const auto = wide && !sel && !pointed && !stage.groupFilter && stage.e > 0.55 && p.t > 0.75;
     const grp = wide && !sel && stage.groupFilter && p.def.group === stage.groupFilter && p.t > 0.5;
-    if (isSel || isHov || auto || grp) {
+    if (isSel || isHov || auto || grp || isAlert) {
       stage.projectAnchor(p, tmp);
-      if (tmp.z < 1) show.push({ p, x: tmp.x, y: tmp.y, sel: isSel || isHov });
+      if (tmp.z < 1) show.push({ p, x: tmp.x, y: tmp.y, sel: isSel || isHov || isAlert, alert: isAlert });
     }
   }
   const shown = new Set(show.map((s) => s.p.def.id));
   for (const [id, c] of callouts) {
     if (!shown.has(id)) {
-      if (c.on) { c.el.classList.remove('on'); c.path.classList.remove('on'); c.dot.classList.remove('on'); c.on = false; }
+      if (c.on) { c.el.classList.remove('on', 'alert'); c.path.classList.remove('on', 'alert'); c.dot.classList.remove('on', 'alert'); c.on = false; }
     }
   }
   if (!show.length) return;
@@ -341,6 +352,9 @@ function updateCallouts() {
       const c = callouts.get(it.p.def.id);
       if (!c.on) { c.el.classList.add('on'); c.path.classList.add('on'); c.dot.classList.add('on'); c.on = true; }
       c.el.classList.toggle('sel', it.sel);
+      c.el.classList.toggle('alert', !!it.alert);
+      c.path.classList.toggle('alert', !!it.alert);
+      c.dot.classList.toggle('alert', !!it.alert);
       const w = c.el.offsetWidth || 120;
       let x0, ly, ex, elbow;
       if (wide) {
@@ -375,7 +389,10 @@ function layoutInsets() {
   const mid = matchMedia('(min-width: 861px)').matches;
   const sheetOpen = $('#right').classList.contains('open');
   const bottom = sheetOpen ? $('#right').offsetHeight + 8 : Math.max(0, a.bottom - d.top + 6);
-  stage.setInsets(!focus && mid ? l.right - a.left + 8 : 0, !focus && desktop ? a.right - r.left + 8 : 0, bottom);
+  const il = !focus && mid ? l.right - a.left + 8 : 0, ir = !focus && desktop ? a.right - r.left + 8 : 0;
+  stage.setInsets(il, ir, bottom);
+  app.style.setProperty('--ins-l', il + 'px'); // the alert banner sits in the free area between the panels
+  app.style.setProperty('--ins-r', ir + 'px');
 }
 new ResizeObserver(layoutInsets).observe(app);
 new ResizeObserver(layoutInsets).observe($('.dock'));
@@ -383,6 +400,7 @@ new ResizeObserver(layoutInsets).observe($('#right'));
 addEventListener('orientationchange', layoutInsets);
 
 // ─────────────── boot ───────────────
+const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => showOverview() });
 useRobot('phantas');
 layoutInsets();
 initJarvis({ stage, app, $ });
