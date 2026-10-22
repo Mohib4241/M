@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Armory x Jarvis: move the robots with your hands.
+Catalogue x Jarvis: move the robots with your hands.
 
-Run this script, a browser tab opens with the Armory viewer, click "Start hand
+Run this script, a browser tab opens with the Catalogue viewer, click "Start hand
 control", and your webcam tracks your hands. The page does the rest.
 
     pip install mediapipe opencv-python aiohttp
@@ -43,7 +43,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 INDEX = HERE / "dist" / "index.html"
 MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
-MODEL_PATH = Path.home() / ".cache" / "armory-jarvis" / "hand_landmarker.task"
+MODEL_PATH = Path.home() / ".cache" / "catalogue-jarvis" / "hand_landmarker.task"
 HAND_LINKS = (
     (0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (5, 9), (9, 10), (10, 11), (11, 12),
     (9, 13), (13, 14), (14, 15), (15, 16), (13, 17), (17, 18), (18, 19), (19, 20), (0, 17),
@@ -517,7 +517,7 @@ class CameraSource(Source):
                     for lm in hands:
                         for a, b in HAND_LINKS:
                             cv2.line(frame, (int(lm[a][0] * w_px), int(lm[a][1] * h_px)), (int(lm[b][0] * w_px), int(lm[b][1] * h_px)), (255, 220, 60), 2)
-                    cv2.imshow("Armory x Jarvis (Esc to close preview)", frame)
+                    cv2.imshow("Catalogue x Jarvis (Esc to close preview)", frame)
                     if cv2.waitKey(1) & 0xFF == 27:
                         break
         finally:
@@ -694,7 +694,7 @@ def build_app(args):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Control the Armory robots with your hands.")
+    ap = argparse.ArgumentParser(description="Control the Catalogue robots with your hands.")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--camera", type=int, default=0, help="camera index (default 0)")
     ap.add_argument("--preview", action="store_true", help="also show an OpenCV window with the hand skeleton")

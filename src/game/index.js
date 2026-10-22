@@ -318,14 +318,14 @@ function nextLap() {
 }
 
 // the graphics setting is remembered between visits (separately from the viewer's look settings)
-const GFX_KEY = 'armory-gfx';
+const GFX_KEY = 'catalogue-gfx';
 function savedMode() {
   try { const m = localStorage.getItem(GFX_KEY); return MODES.includes(m) ? m : 'auto'; } catch { return 'auto'; }
 }
 function saveMode(m) {
   try { localStorage.setItem(GFX_KEY, m); } catch { /* private window: the setting just lasts for this visit */ }
 }
-const PAINT_KEY = 'armory-paint';
+const PAINT_KEY = 'catalogue-paint';
 function savedPaint() {
   try { const p = localStorage.getItem(PAINT_KEY); return PAINT_KEYS.includes(p) ? p : 'classic'; } catch { return 'classic'; }
 }
@@ -371,7 +371,7 @@ function frame(now) {
   const raw = Math.max(0, (now - S.last) / 1000); // the real frame time, for the quality governor
   const dt = Math.min(0.05, raw);
   S.last = now;
-  if (S.scene && !window.__armoryNoAdapt) {
+  if (S.scene && !window.__catalogueNoAdapt) {
     const lv = S.gov.update(raw);
     if (lv !== null) { S.scene.setLevel(lv); toast(`Graphics lowered to keep the race smooth: ${S.gov.label}`); }
   }

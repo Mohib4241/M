@@ -1,5 +1,5 @@
 {
-  "name": "armory-cleaning-robots",
+  "name": "catalogue-cleaning-robots",
   "version": "1.0.0",
   "description": "Iron-Man-style exploded 3D viewer for the Gausium Phantas and PUDU CC1 Pro cleaning robots",
   "main": "index.js",

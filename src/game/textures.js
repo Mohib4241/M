@@ -301,7 +301,7 @@ export const bannerTex = () => canvasTexWH(2048, 256, (g, w, h) => {
       g.fillRect(x0 + i * q, 16 + j * q, q, q);
     }
   }
-  neon(g, 'ARMORY RACING CLUB', w / 2, h * 0.44, 150, '#ffffff', { glow: 34 });
+  neon(g, 'APEX RACING CLUB', w / 2, h * 0.44, 150, '#ffffff', { glow: 34 });
   g.fillStyle = '#ff3fa4';
   g.shadowColor = '#ff3fa4'; g.shadowBlur = 18;
   g.fillRect(w / 2 - 560, h * 0.74, 1120, 7);
@@ -312,7 +312,7 @@ export const bannerTex = () => canvasTexWH(2048, 256, (g, w, h) => {
 /** Four boards in one image (rows of 128 px): club slogans for the grandstands and the roof. */
 export const signsTex = () => canvasTexWH(1024, 512, (g, w, h) => {
   const rows = [
-    ['ARMORY RACING CLUB', '#35f0ff', '#ff3fa4'],
+    ['APEX RACING CLUB', '#35f0ff', '#ff3fa4'],
     ['NIGHT SERIES', '#ffd15c', '#35f0ff'],
     ['DRIFT KINGS', '#ff3fa4', '#ffd15c'],
     ['CLEAN SWEEP CUP', '#8dff7a', '#35f0ff'],

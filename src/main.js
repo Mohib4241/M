@@ -21,7 +21,7 @@ function glOk() {
 if (!glOk()) { $('#nogl').hidden = false; throw new Error('WebGL unavailable'); }
 
 let look = 'studio';
-try { const saved = localStorage.getItem('armory-look'); if (saved === 'holo' || saved === 'studio') look = saved; } catch { /* storage unavailable */ }
+try { const saved = localStorage.getItem('catalogue-look'); if (saved === 'holo' || saved === 'studio') look = saved; } catch { /* storage unavailable */ }
 const stage = new Stage(canvas, { look });
 const gcol = (g) => (stage.look === 'studio' ? GROUPS[g].studio : GROUPS[g].color);
 
@@ -235,7 +235,7 @@ $$('.look button').forEach((b) => b.addEventListener('click', () => {
   const sel = stage.selected?.def.id || null;
   const g = $('.chip[aria-pressed="true"]')?.dataset.g || null;
   stage.setLook(b.dataset.look);
-  try { localStorage.setItem('armory-look', stage.look); } catch { /* ignore */ }
+  try { localStorage.setItem('catalogue-look', stage.look); } catch { /* ignore */ }
   applyLookUI();
   buildList();
   buildCallouts();
@@ -411,4 +411,4 @@ $('#play-btn').onclick = () => openRace(ROBOTS, {
   onOpen: () => stage.renderer.setAnimationLoop(null),
   onClose: () => stage.renderer.setAnimationLoop((t) => stage._frame(t)),
 });
-window.__armory = { stage, useRobot, ROBOTS };
+window.__catalogue = { stage, useRobot, ROBOTS };

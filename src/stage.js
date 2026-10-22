@@ -792,7 +792,7 @@ export class Stage {
 
   // Switch off glow and drop to 1x pixel ratio if the device can't hold ~26 fps.
   _adapt(dt) {
-    if (window.__armoryNoAdapt || this._adapted) return;
+    if (window.__catalogueNoAdapt || this._adapted) return;
     this._perf = this._perf || { t: 0, n: 0, sum: 0 };
     const P = this._perf;
     P.t += dt;

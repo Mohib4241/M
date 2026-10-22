@@ -2,7 +2,7 @@
 # Dashboard route: New > Static Site > pick this repo, Build Command and Publish Directory as below.
 services:
   - type: web
-    name: armory
+    name: catalogue
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist

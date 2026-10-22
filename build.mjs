@@ -1,9 +1,9 @@
 // Bundles src/ into one self-contained HTML file (dist/index.html) and an
-// artifact-ready fragment (dist/armory.artifact.html).
+// artifact-ready fragment (dist/catalogue.artifact.html).
 import { build } from 'esbuild';
 import fs from 'node:fs';
 
-const TITLE = 'Armory';
+const TITLE = 'Catalogue';
 
 // Shown in the page so you can tell which build you are looking at (Render sets RENDER_GIT_COMMIT).
 function buildStamp() {
@@ -70,7 +70,7 @@ ${fontLinks}
 ${body}
 <script>${js}</script>
 `;
-  fs.writeFileSync('dist/armory.artifact.html', fragment);
+  fs.writeFileSync('dist/catalogue.artifact.html', fragment);
   console.log(`built dist/index.html (${(page.length / 1024).toFixed(0)} KB)`);
 }
 

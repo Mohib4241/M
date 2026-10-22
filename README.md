@@ -1,4 +1,4 @@
-# Armory
+# Catalogue
 
 A 3D teardown of two commercial cleaning robots: the **Gausium Phantas** and the **PUDU CC1 Pro**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
@@ -82,7 +82,7 @@ pip install -r requirements.txt
 python3 jarvis.py
 ```
 
-On Windows, activate with `.venv\Scripts\activate` and run `python jarvis.py`. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/armory-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe. Installing into a shared environment such as Anaconda `base` works but can change versions of numpy and matplotlib for your other projects, which is why the private `.venv` is the default.
+On Windows, activate with `.venv\Scripts\activate` and run `python jarvis.py`. The first run downloads a small (about 8 MB) hand model and caches it in `~/.cache/catalogue-jarvis/`. It works with both the old (`mp.solutions`) and the current (Tasks API) MediaPipe. Installing into a shared environment such as Anaconda `base` works but can change versions of numpy and matplotlib for your other projects, which is why the private `.venv` is the default.
 
 Options: `--demo` (simulated hands, no camera), `--video FILE` (a recorded clip instead of the webcam), `--preview` (also show an OpenCV window), `--camera 1` (another camera), `--port 8766`, `--no-browser`, `--selftest` (check the gesture engine).
 
@@ -177,13 +177,13 @@ Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of d
 
 **Graphics.** The race is drawn into a floating-point (HDR) buffer, so neon, lamps, flames and sparks can be brighter than white and glow through a bloom pass. The robots are glossy race-painted copies of the same models (a body colour, dark trim, a number roundel and a side stripe), with headlights that throw a beam and a pool of light on the road, tail lights that brighten under the front brake, and an underglow. Their paint mirrors the club through a small reflection map drawn from just above the start line. At speed there is a soft radial blur, a colour split during a boost, and a vignette.
 
-`G` steps the setting through Auto, High, Medium and Low, and the choice is remembered in the browser (`armory-gfx`). **High** adds bloom, sharper pixels and a large shadow map. **Medium** drops bloom. **Low** drops all post-processing. **Auto** starts on High and, like the dynamic resolution of a console game, reacts to a sagging frame rate in two stages. First it draws fewer pixels (85%, then 70% of the width and height) and lets the browser stretch them, which keeps the look and the bloom; this starts when the frame rate stays under 52 for 1.2 seconds. Only if it is still under 28 at 70% does it drop a level. While a lower scale holds a steady 57 or more it tries the next scale up (after 20 seconds, and after twice as long each time a try fails), so one stutter does not leave the picture soft for good. The first 2.5 seconds are ignored. The rule is in `game/quality.js` and is tested without a GPU. Press `P` to see the frame rate and the current render resolution.
+`G` steps the setting through Auto, High, Medium and Low, and the choice is remembered in the browser (`catalogue-gfx`). **High** adds bloom, sharper pixels and a large shadow map. **Medium** drops bloom. **Low** drops all post-processing. **Auto** starts on High and, like the dynamic resolution of a console game, reacts to a sagging frame rate in two stages. First it draws fewer pixels (85%, then 70% of the width and height) and lets the browser stretch them, which keeps the look and the bloom; this starts when the frame rate stays under 52 for 1.2 seconds. Only if it is still under 28 at 70% does it drop a level. While a lower scale holds a steady 57 or more it tries the next scale up (after 20 seconds, and after twice as long each time a try fails), so one stutter does not leave the picture soft for good. The first 2.5 seconds are ignored. The rule is in `game/quality.js` and is tested without a GPU. Press `P` to see the frame rate and the current render resolution.
 
 **Smooth on fast screens.** The race steps at 60 Hz, but each frame draws the state between the last two steps (`game/interp.js`), so a 120 or 144 Hz screen shows smooth motion instead of the same picture two or three times. The cost is one step (about 16 ms) of delay. The frame loop itself is not capped: it runs at the screen's refresh rate.
 
 **Camera.** A close chase camera sits above and behind the robot and looks well down the road, so the robot rides low in the frame and the bend ahead shows. It follows where the robot is going more than where it points, so in a drift the robot swings round in front of it and shows its side. It pulls back and widens as speed builds, widens and shakes slightly under a boost, and the menu screen turns slowly round the robot instead. The numbers are in `game/chasecam.js`.
 
-**Body colour.** On the robot screen, under the two robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`armory-paint`).
+**Body colour.** On the robot screen, under the two robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`catalogue-paint`).
 
 The game is a stylised model, not the real robot. Both robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. It needs a keyboard, so it does not run on phones.
 
@@ -203,7 +203,7 @@ The manufacturer sites (`gausium.com`, `academy.pudutech.com`) and the retailer 
 
 ```bash
 npm install
-npm run build      # writes dist/index.html and dist/armory.artifact.html
+npm run build      # writes dist/index.html and dist/catalogue.artifact.html
 npm run dev        # rebuilds on change
 npm run serve      # static server on :5173
 ```
@@ -240,6 +240,6 @@ tests/           Gesture engine tests
 render.yaml      Render Blueprint (static site)
 ```
 
-Race mode has a test hook: open the page with `?racedebug` (for example `dist/index.html?racedebug=1`) and `window.__raceDbg` exposes the live race (`S.race`, `S.scene`, the renderer, the key reader and the line-following driver), so a script can step a whole lap without waiting for frames. In a script, `window.__armoryNoAdapt = true` (set before the page loads) turns off the automatic graphics step-down, so slow software rendering does not change the picture mid-test.
+Race mode has a test hook: open the page with `?racedebug` (for example `dist/index.html?racedebug=1`) and `window.__raceDbg` exposes the live race (`S.race`, `S.scene`, the renderer, the key reader and the line-following driver), so a script can step a whole lap without waiting for frames. In a script, `window.__catalogueNoAdapt = true` (set before the page loads) turns off the automatic graphics step-down, so slow software rendering does not change the picture mid-test.
 
 To add a part, add an object to a robot's `parts` array with a `home` position, an `ex` explode offset, a `layer` (0 outermost to 3 innermost) and a `build(b)` function. To add a robot, create a data file like `data/phantas.js` and register it in `main.js`.
