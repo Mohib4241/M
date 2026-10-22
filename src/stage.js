@@ -708,7 +708,8 @@ export class Stage {
         ring.material.opacity = on * Math.pow(1 - ph, 1.4) * 0.95;
       });
       f.pin.position.set(f.v.x, f.v.y + r * 1.1 + 0.9 + 0.22 * Math.sin(t * 3.4), f.v.z);
-      f.pin.scale.set(1.5, 1.5, 1);
+      const ps = clamp(r * 0.6, 0.8, 1.3); // the pin grows with the part, but stays modest
+      f.pin.scale.set(ps, ps, 1);
       f.pin.material.opacity = on * 0.95;
     }
   }
@@ -1045,7 +1046,7 @@ export class Stage {
       // frame the pointed-at parts: all of them inside the free area, clear of the panels and the dock
       const f = this._fit(this.alert.main);
       tx = f.center.x; ty = f.center.y; tz = f.center.z;
-      dist = f.dist * this.userZoom;
+      dist = f.dist * 1.25 * this.userZoom; // a little roomier than a selection, so a big part like the frame is not cropped
     }
 
     // auto-orbit when idle
