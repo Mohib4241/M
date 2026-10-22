@@ -11,7 +11,9 @@ import { layoutClub, CLUB } from './club.js';
 import { buildClub } from './clubscene.js';
 import { Effects } from './fx.js';
 import { RacePost } from './post.js';
-import { robotExtras } from './livery.js';
+import { robotExtras, setPaint } from './livery.js';
+import { chaseParams, chaseYawTarget, followAngle } from './chasecam.js';
+import { snapshot, lerpState } from './interp.js';
 import { tierOf } from './drift.js';
 import { clamp } from './rng.js';
 import { pointScale } from './pointscale.js';
@@ -19,7 +21,6 @@ import {
   cached, asphaltTex, carParkTex, concreteTex, checkerTex, dotTex, mouthTex,
 } from './textures.js';
 
-const tmp = new THREE.Vector3();
 
 export function createRenderer(canvas) {
   const r = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -36,7 +37,7 @@ export function createRenderer(canvas) {
 const SKY = { top: 0x0b1124, horizon: 0x2b3457, glow: 0xd9824f };
 
 export class RaceScene {
-  constructor(renderer, race, { playerDef, aiDef, level = 2 }) {
+  constructor(renderer, race, { playerDef, aiDef, level = 2, paint = 'classic', scale = 1 }) {
     this.race = race;
     this.road = race.road;
     this.renderer = renderer;
@@ -55,6 +56,7 @@ export class RaceScene {
     this._club();
     this._reflections(); // after the world is built and before the robots join it
     this._cars(playerDef, aiDef);
+    this.setPaint(paint);
     this._dust();
     this._mouth();
     this.post = new RacePost(renderer, this.scene, this.camera);
@@ -66,7 +68,34 @@ export class RaceScene {
     this.fov = 56;
     this.motion = { vx: 0, ax: 0, burn: 0 }; // body lean, nose dip and wheel burnout of the player's robot
     this.aiVx = 0;
+    this.camYaw = 0; // the camera's heading, which trails the robot's and leans into a slide
+    this.camDist = 0;
+    this.camTarget = new THREE.Vector3(); // scratch, so the camera allocates nothing per frame
+    this.iP = snapshot(race.player.car); // the robots as drawn: between the last two steps of the race
+    this.iA = snapshot(race.ai.car);
+    this.showroom = false;
+    this.scale = scale; // render scale from the quality governor
     this.setLevel(level);
+  }
+
+  /** The player's body colour: 'classic' (the robot's own), 'white' or 'black'. The opponent keeps its own paint. */
+  setPaint(key) {
+    this.paint = key;
+    setPaint(this.playerModel, this.playerDef.id, key);
+    setPaint(this.aiModel, this.aiDef.id, 'classic');
+  }
+
+  /** Draw at a fraction of the pixels (0.7 to 1) and let the browser stretch it: the cheap way to buy back frame time. */
+  setScale(s) {
+    this.scale = s;
+    this._pixelRatio();
+    this.resize(this.w, this.h);
+  }
+
+  _pixelRatio() {
+    const base = this.level >= 2 ? Math.min(window.devicePixelRatio || 1, 1.5) : 1;
+    const pr = base * this.scale;
+    if (this.renderer.getPixelRatio() !== pr) this.renderer.setPixelRatio(pr);
   }
 
   // The reflection probe: the finished club (barriers, neon, skyline, sky) is drawn into a small
@@ -99,8 +128,7 @@ export class RaceScene {
       this.sun.shadow.map = null;
       this.sun.shadow.mapSize.set(size, size);
     }
-    const pr = level >= 2 ? Math.min(window.devicePixelRatio || 1, 1.5) : 1;
-    if (this.renderer.getPixelRatio() !== pr) this.renderer.setPixelRatio(pr);
+    this._pixelRatio();
     this.resize(this.w, this.h);
   }
 
@@ -267,9 +295,11 @@ export class RaceScene {
   }
 
   _cars(playerDef, aiDef) {
+    this.playerDef = playerDef;
+    this.aiDef = aiDef;
     this.playerModel = carModel(playerDef);
     this.aiModel = carModel(aiDef);
-    for (const m of [this.playerModel, this.aiModel]) { m.car.rotation.x = 0; m.car.rotation.z = 0; }
+    for (const m of [this.playerModel, this.aiModel]) { m.car.rotation.x = 0; m.car.rotation.z = 0; m.car.visible = true; } // shared models: start every scene with both shown
     this.scene.add(this.playerModel.car, this.aiModel.car);
     this.fx = new Effects(this.playerModel, this.road, this.road.seed);
     this.scene.add(this.fx.group);
@@ -327,15 +357,39 @@ export class RaceScene {
     this.w = w; this.h = h;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    this._frame();
     this.post.setSize(w, h);
   }
 
-  /** Put every visual in place for the current race state and draw one frame. */
+  // In the showroom the menu card covers the left of the screen, so the robot is moved to the right of it.
+  _frame() {
+    if (this.showroom && this.w >= 900) this.camera.setViewOffset(this.w, this.h, -this.w * 0.19, 0, this.w, this.h);
+    else this.camera.clearViewOffset();
+    this.camera.updateProjectionMatrix();
+  }
+
+  /**
+   * Put every visual in place for the current race state and draw one frame.
+   * opts: pick, brake, racing, finishView (orbit the robot), showroom (the robot screen: only the
+   * player's robot, turning beside the menu card), prev + alpha (the robots' states before the last
+   * step, and how far between that and now this frame is, so fast screens draw smooth motion).
+   */
   draw(dt, opts = {}) {
-    const race = this.race, P = race.player.car, A = race.ai.car;
+    const race = this.race;
+    const alpha = opts.prev ? clamp(opts.alpha ?? 1, 0, 1) : 1;
+    const P = alpha < 1 ? lerpState(opts.prev.p, race.player.car, alpha, this.iP) : snapshot(race.player.car, this.iP);
+    const A = alpha < 1 ? lerpState(opts.prev.a, race.ai.car, alpha, this.iA) : snapshot(race.ai.car, this.iA);
     this.time += dt;
     this.club.update(this.time);
+
+    const show = !!opts.showroom;
+    if (show !== this.showroom) { // entering or leaving the showroom
+      this.showroom = show;
+      this.aiModel.car.visible = !show;
+      this.aiBlob.visible = !show;
+      this._frame();
+    }
+
     this._placeCar(this.playerModel, P, dt, this.motion);
     this._placeCar(this.aiModel, A, dt, null);
     this.playerBlob.position.set(P.x, 0.03, P.z);
@@ -356,7 +410,7 @@ export class RaceScene {
       car: P, time: this.time, racing: !!opts.racing, brake: !!opts.brake, pick: !!opts.pick,
       sucking: !!opts.pick && race.dust.sucking > 0, surf: race.player.surf, charge: race.drift, finished: race.player.finished,
     });
-    this._camera(dt, opts);
+    this._camera(dt, opts, P);
     this._sunFollow(P);
     pointScale.value = this.renderer.domElement.height / (2 * Math.tan(this.camera.fov * Math.PI / 360)); // pixels per unit at depth 1
 
@@ -423,33 +477,52 @@ export class RaceScene {
     if (any) this.dustMesh.instanceMatrix.needsUpdate = true;
   }
 
-  _camera(dt, opts) {
-    const race = this.race, c = race.player.car;
+  // The chase camera sits close behind and above the robot and looks past it down the road, so the
+  // robot rides low in the frame and the bend ahead shows. It follows where the robot is going more
+  // than where it points: in a slide the robot swings round in front of it and shows its side. It
+  // pulls back, widens and shakes a little as speed builds and under a boost (see chasecam.js).
+  // Nothing is allocated here: it runs every frame.
+  _camera(dt, opts, c) {
+    const race = this.race;
     const speed = Math.abs(c.vx);
-    const fwd = tmp.set(Math.sin(c.psi), 0, Math.cos(c.psi));
-    const dist = 17 + Math.min(3, speed * 0.2) + 2 * clamp((race.drift.vmul - 1) / 0.2, 0, 1);
-    const height = 6.2 + Math.min(1.2, speed * 0.08);
-    if (opts.finishView) {
+    const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);
+    const pos = this.camPos, look = this.camLook;
+    let fovTarget;
+    if (opts.showroom) {
+      // the robot screen: a slow turn round the robot, close enough to see the paint
+      this.orbit += dt * 0.4;
+      const o = this.orbit + 2.4;
+      pos.set(c.x + Math.sin(o) * 17, 5.2, c.z + Math.cos(o) * 17);
+      look.set(c.x, 2.9, c.z);
+      fovTarget = 40;
+    } else if (opts.finishView) {
       // slow orbit around the robot once the lap is done
       this.orbit += dt * 0.25;
       const o = this.orbit;
-      const target = new THREE.Vector3(c.x + Math.cos(o) * 18, 6.5, c.z + Math.sin(o) * 18);
-      this.camPos.lerp(target, 1 - Math.exp(-dt * 2));
+      this.camTarget.set(c.x + Math.cos(o) * 18, 6.5, c.z + Math.sin(o) * 18);
+      pos.lerp(this.camTarget, 1 - Math.exp(-dt * 2));
+      look.set(c.x, 2.2, c.z);
+      fovTarget = 56;
     } else {
-      const target = new THREE.Vector3(c.x - fwd.x * dist, height, c.z - fwd.z * dist);
-      if (!this.initCam) { this.camPos.copy(target); this.initCam = true; }
-      this.camPos.lerp(target, 1 - Math.exp(-dt * 7));
+      const p = chaseParams(speed / CAR.VMAX, boost);
+      if (!this.initCam) { this.camYaw = c.psi; this.camDist = p.dist; this.initCam = true; }
+      this.camYaw = followAngle(this.camYaw, chaseYawTarget(c), dt, p.yawRate);
+      this.camDist += (p.dist - this.camDist) * (1 - Math.exp(-dt * 3));
+      const sy = Math.sin(this.camYaw), cy = Math.cos(this.camYaw);
+      pos.set(c.x - sy * this.camDist, p.height, c.z - cy * this.camDist);
+      look.set(c.x + sy * p.ahead, p.lookY, c.z + cy * p.ahead);
+      if (p.shake > 0 && opts.racing) { // a small wobble at speed and in a boost
+        const t = this.time;
+        pos.x += Math.sin(t * 47.1) * p.shake;
+        pos.y += Math.sin(t * 61.7 + 1.3) * p.shake * 0.6;
+        pos.z += Math.sin(t * 39.3 + 2.1) * p.shake;
+      }
+      fovTarget = p.fov;
     }
-    this.camera.position.copy(this.camPos);
-    // racing: look well ahead, so the horizon and skyline show; in the finish orbit: at the robot
-    if (opts.finishView) this.camLook.set(c.x, 2.2, c.z);
-    else this.camLook.set(c.x + fwd.x * 10, 2.2, c.z + fwd.z * 10);
-    this.camera.lookAt(this.camLook);
-    // a boost opens the view a little and pulls the camera back
-    const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);
-    const fovTarget = 56 + Math.min(8, speed * 0.5) + 6 * boost;
+    this.camera.position.copy(pos);
+    this.camera.lookAt(look);
     this.fov += (fovTarget - this.fov) * (1 - Math.exp(-dt * 6));
-    if (Math.abs(this.camera.fov - this.fov) > 0.01) { this.camera.fov = this.fov; this.camera.updateProjectionMatrix(); }
+    if (Math.abs(this.camera.fov - this.fov) > 0.01) { this.camera.fov = this.fov; this._frame(); }
   }
 
   _sunFollow(c) {
@@ -462,6 +535,7 @@ export class RaceScene {
   dispose() {
     this.extras.player.dispose(); // these sit on the shared robot models, so they come off first
     this.extras.ai.dispose();
+    this.aiModel.car.visible = true; // the showroom hides the opponent; the model is shared, so put it back
     this.post.dispose();
     this.scene.traverse((o) => {
       if (o.isInstancedMesh) o.dispose(); // frees the instance buffers, which dispose() on the geometry does not

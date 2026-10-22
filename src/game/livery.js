@@ -15,6 +15,32 @@ export const LIVERY = {
 };
 const liveryOf = (id) => LIVERY[id] || LIVERY.phantas;
 
+// the body colours the player can choose; `classic` is each robot's own livery above
+export const PAINT_KEYS = ['classic', 'white', 'black'];
+export const PAINTS = {
+  classic: { label: 'Classic' },
+  white: { label: 'White', shell: 0xf3f5f7, trim: 0x2a313a, metalness: 0.2, roughness: 0.3, env: 1.1, glow: 0x1d2229, swatch: '#f3f5f7' }, // glow: lifts the shadows, so white stays white at night
+  black: { label: 'Black', shell: 0x08090c, trim: 0x232a33, metalness: 0.55, roughness: 0.22, env: 2.3, glow: 0x000000, swatch: '#08090c' },
+};
+/** The colour of a paint option as CSS, for its swatch (a classic body is the robot's own colour). */
+export const paintSwatch = (key, id) => PAINTS[key]?.swatch || `#${liveryOf(id).shell.toString(16).padStart(6, '0')}`;
+
+/**
+ * Colour a robot's body. model: from carModel; id: the robot id. The body panels share one material
+ * per finish, so this recolours the whole shell at once. It is called for both robots every time a
+ * scene is built, because the models are shared between scenes.
+ */
+export function setPaint(model, id, key) {
+  const L = liveryOf(id), P = PAINTS[key] || PAINTS.classic;
+  const shell = model.shared.get('shell'), dk = model.shared.get('shellDk');
+  if (shell) {
+    shell.color.set(P.shell ?? L.shell);
+    Object.assign(shell, { metalness: P.metalness ?? 0.6, roughness: P.roughness ?? 0.3, envMapIntensity: P.env ?? 1.9 });
+    shell.emissive.set(P.glow ?? 0x000000);
+  }
+  if (dk) dk.color.set(P.trim ?? L.trim);
+}
+
 /** Race paint and night-time LED brightness, on the materials shared by one robot's parts. */
 export function applyPaint(shared, id) {
   const L = liveryOf(id);

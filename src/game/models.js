@@ -114,7 +114,7 @@ export function carModel(def) {
     footL: Ld,
   };
   const wrap = {
-    car, wheels, r: WHEEL_R[def.id] || 0.7,
+    car, wheels, shared, r: WHEEL_R[def.id] || 0.7,
     wheelX: Math.abs(wl?.home[0] ?? 2), wheelZ: wl?.home[2] ?? -0.7, // drive wheel offset from the centre
     rearZ: box.min.z, height: box.max.y - box.min.y, dims,
   };

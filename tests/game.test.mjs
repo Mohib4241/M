@@ -11,6 +11,10 @@ import { rng } from '../src/game/rng.js';
 import { newDrift, stepDrift, tierOf, onKerb, BOOST } from '../src/game/drift.js';
 import { layoutClub, clearance, rectsTouch, CLUB } from '../src/game/club.js';
 import { QualityGovernor, MODES } from '../src/game/quality.js';
+import { chaseYawTarget, followAngle, chaseParams } from '../src/game/chasecam.js';
+import { snapshot, lerpState } from '../src/game/interp.js';
+import { PAINTS, PAINT_KEYS, LIVERY, paintSwatch, setPaint } from '../src/game/livery.js';
+import { wrapAngle } from '../src/game/rng.js';
 
 const DT = 1 / 60;
 
@@ -399,3 +403,107 @@ test('quality: a fixed mode ignores frame time, and cycling visits every mode', 
   assert.equal(new QualityGovernor({ mode: 'high' }).level, 2);
 });
 
+
+test('quality: a mild sag lowers the render scale in steps and keeps the level; a steady rate later tries a bigger scale', () => {
+  const g = new QualityGovernor();
+  frames(g, 12, 40); // under 52 but over 28
+  assert.equal(g.level, 2);
+  assert.equal(g.scale, 0.7);
+  frames(g, 25, 60); // steady 60 for 20 s: one step back up
+  assert.equal(g.level, 2);
+  assert.equal(g.scale, 0.85);
+});
+
+test('quality: a failed try at a bigger scale makes the next try wait twice as long', () => {
+  const g = new QualityGovernor();
+  frames(g, 10, 40);
+  frames(g, 21, 60);
+  assert.equal(g.scale, 0.85); // the try
+  frames(g, 2.5, 40); // sags again while it is on trial
+  assert.equal(g.scale, 0.7);
+  assert.equal(g.probeAfter, 40);
+  frames(g, 25, 60);
+  assert.equal(g.scale, 0.7); // 25 s is not enough any more
+  frames(g, 20, 60);
+  assert.equal(g.scale, 0.85);
+});
+
+test('quality: a fixed mode keeps the full render scale, and cycling puts it back', () => {
+  const g = new QualityGovernor();
+  frames(g, 12, 40);
+  assert.equal(g.scale, 0.7);
+  g.cycle();
+  assert.equal(g.scale, 1);
+  assert.equal(new QualityGovernor({ mode: 'high' }).scale, 1);
+});
+
+// ───────── chase camera and smooth drawing ─────────
+test('chase camera: it faces the heading when the robot goes straight or crawls, and leans into a slide', () => {
+  assert.ok(Math.abs(chaseYawTarget({ psi: 0.4, vx: 10, vy: 0 }) - 0.4) < 1e-9);
+  assert.equal(chaseYawTarget({ psi: 0.4, vx: 0.2, vy: 0.2 }), 0.4);
+  // heading 0, moving 8 forward and 4 toward +x: the direction of travel is atan2(4, 8) = 0.46 rad
+  const t = chaseYawTarget({ psi: 0, vx: 8, vy: 4 });
+  assert.ok(t > 0.2 && t < Math.atan2(4, 8), `target ${t}`);
+  // the same slide to the other side leans the other way
+  assert.ok(chaseYawTarget({ psi: 0, vx: 8, vy: -4 }) < -0.2);
+});
+
+test('chase camera: turning to a target goes the short way round, and never overshoots', () => {
+  assert.ok(followAngle(3.1, -3.1, 0.1, 4.5) > 3.1); // across the +-pi seam, not the long way
+  assert.ok(Math.abs(wrapAngle(followAngle(3.1, -3.1, 10, 4.5) + 3.1)) < 0.01);
+  const a = followAngle(0, 1, 0.016, 4.5);
+  assert.ok(a > 0 && a < 1);
+});
+
+test('chase camera: it pulls back and widens with speed and a boost, within sane limits', () => {
+  const slow = chaseParams(0, 0), fast = chaseParams(1, 0), boosted = chaseParams(1, 1);
+  assert.ok(fast.dist > slow.dist && boosted.dist > fast.dist);
+  assert.ok(fast.fov > slow.fov && boosted.fov > fast.fov);
+  assert.ok(slow.fov >= 55 && boosted.fov <= 85, `fov ${slow.fov} .. ${boosted.fov}`);
+  assert.ok(slow.height > 5, 'the camera stays above the robots (about 6 units tall)');
+  assert.equal(chaseParams(5, 3).dist, chaseParams(1.3, 1).dist); // clamped
+});
+
+test('smooth drawing: a state between two steps is the blend, and the heading crosses the seam the short way', () => {
+  const a = { x: 0, z: 0, psi: 3.1, vx: 4, vy: 0, r: 0, spinL: 0, spinR: 0, aLat: 0, drift: 0 };
+  const b = { x: 2, z: 4, psi: -3.1, vx: 6, vy: 1, r: 0, spinL: 1, spinR: 1, aLat: 2, drift: 1 };
+  const m = lerpState(a, b, 0.5);
+  assert.equal(m.x, 1); assert.equal(m.z, 2); assert.equal(m.vx, 5); assert.equal(m.drift, 0.5);
+  assert.ok(Math.abs(Math.cos(m.psi) + 1) < 1e-3, `psi ${m.psi}`);
+  assert.deepEqual(lerpState(a, b, 0), { ...a, psi: a.psi });
+  const s = snapshot(a);
+  a.x = 99;
+  assert.equal(s.x, 0); // a copy, not a reference
+});
+
+// ───────── body colours ─────────
+test('body colours: classic, white and black are offered, each with a usable colour', () => {
+  assert.deepEqual(PAINT_KEYS, ['classic', 'white', 'black']);
+  for (const k of PAINT_KEYS) assert.ok(PAINTS[k].label);
+  for (const k of ['white', 'black']) {
+    assert.ok(Number.isInteger(PAINTS[k].shell) && Number.isInteger(PAINTS[k].trim), `${k} shell and trim colours`);
+    assert.match(PAINTS[k].swatch, /^#[0-9a-f]{6}$/);
+  }
+  // the white shell is lighter than the black one, in perceived brightness
+  const lum = (h) => ((h >> 16) & 255) * 0.2126 + ((h >> 8) & 255) * 0.7152 + (h & 255) * 0.0722;
+  assert.ok(lum(PAINTS.white.shell) > 200 && lum(PAINTS.black.shell) < 30);
+  // a classic swatch is the robot's own colour
+  assert.equal(paintSwatch('classic', 'phantas'), '#' + LIVERY.phantas.shell.toString(16).padStart(6, '0'));
+  assert.equal(paintSwatch('white', 'cc1pro'), PAINTS.white.swatch);
+});
+
+test('body colours: setPaint recolours the shared shell materials and classic puts the robot colour back', () => {
+  const mat = () => ({ color: { v: 0, set(x) { this.v = x; } }, emissive: { v: 0, set(x) { this.v = x; } } });
+  const model = { shared: new Map([['shell', mat()], ['shellDk', mat()]]) };
+  setPaint(model, 'cc1pro', 'white');
+  assert.equal(model.shared.get('shell').color.v, PAINTS.white.shell);
+  assert.equal(model.shared.get('shellDk').color.v, PAINTS.white.trim);
+  setPaint(model, 'cc1pro', 'black');
+  assert.equal(model.shared.get('shell').color.v, PAINTS.black.shell);
+  setPaint(model, 'cc1pro', 'classic');
+  assert.equal(model.shared.get('shell').color.v, LIVERY.cc1pro.shell);
+  assert.equal(model.shared.get('shellDk').color.v, LIVERY.cc1pro.trim);
+  assert.equal(model.shared.get('shell').emissive.v, 0); // classic has no glow
+  setPaint(model, 'phantas', 'nonsense'); // an unknown key falls back to classic
+  assert.equal(model.shared.get('shell').color.v, LIVERY.phantas.shell);
+});

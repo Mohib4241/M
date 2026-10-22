@@ -9,6 +9,8 @@ import { GameAudio } from './audio.js';
 import { rng } from './rng.js';
 import { driverInput } from './ai.js';
 import { QualityGovernor, MODES } from './quality.js';
+import { PAINT_KEYS, PAINTS, paintSwatch } from './livery.js';
+import { snapshot } from './interp.js';
 import { TANK_MAX } from './dust.js';
 import { CHARGE_MAX, TIER_AT, tierOf } from './drift.js';
 
@@ -39,7 +41,7 @@ export function openRace(defs, hooks = {}) {
     seed: (Math.random() * 1e9) | 0,
     roads: [], lap: 0, results: [], race: null, scene: null,
     screen: 'robot', paused: false, acc: 0, last: performance.now(), raf: 0,
-    audio: new GameAudio(), gov: new QualityGovernor({ mode: savedMode() }), sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
+    audio: new GameAudio(), gov: new QualityGovernor({ mode: savedMode() }), paint: savedPaint(), snap: { p: {}, a: {}, ok: false }, ema: 0, fpsT: 0, showFps: false, sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
   };
   S.oppId = otherRobot(S.robotId);
   S.detach = attachKeys();
@@ -108,7 +110,8 @@ function buildScene(spec, { skill } = {}) {
   S.scene?.dispose();
   const race = new Race(spec.road, { skill: skill ?? lapSkill(spec), dustSeed: spec.seed });
   S.race = race;
-  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], aiDef: S.defs[S.oppId], level: S.gov.level });
+  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], aiDef: S.defs[S.oppId], level: S.gov.level, scale: S.gov.scale, paint: S.paint });
+  S.snap.ok = false; // a new race: nothing to blend with yet
   onResize();
   S.mapBg = null;
 }
@@ -151,12 +154,21 @@ function robotCard(id) {
   </button>`;
 }
 
+function paintRow() {
+  const id = S.robotId;
+  return `<div class="g-paints" role="group" aria-label="Body colour">
+    <span class="g-label">Body colour</span>
+    <div class="g-swatches">${PAINT_KEYS.map((k) => `<button class="g-swatch ${S.paint === k ? 'on' : ''}" style="--sw:${paintSwatch(k, id)}" data-act="paint:${k}" aria-pressed="${S.paint === k}"><i></i><span>${PAINTS[k].label}</span></button>`).join('')}</div>
+  </div>`;
+}
+
 function robotScreen() {
-  return `<div class="g-card g-wide">
+  return `<div class="g-card g-side">
     <header><span class="g-kicker">Race mode</span><h2>Choose your robot</h2>
     <p>You race the other robot, round five random roads. Each lap is about a minute.</p></header>
     <div class="g-robots">${robotCard('phantas')}${robotCard('cc1pro')}</div>
-    <p class="g-note">You drive with the keyboard: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust. Race mode needs a keyboard, not a phone.</p>
+    ${paintRow()}
+    <p class="g-note">Keys: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust, <kbd>G</kbd> graphics, <kbd>P</kbd> frame rate. Race mode needs a keyboard, not a phone.</p>
     <div class="g-actions"><button class="g-btn primary" data-focus data-act="to-roads">Next: choose roads →</button><button class="g-btn" data-act="exit">Back to viewer</button></div>
   </div>`;
 }
@@ -313,6 +325,13 @@ function savedMode() {
 function saveMode(m) {
   try { localStorage.setItem(GFX_KEY, m); } catch { /* private window: the setting just lasts for this visit */ }
 }
+const PAINT_KEY = 'armory-paint';
+function savedPaint() {
+  try { const p = localStorage.getItem(PAINT_KEY); return PAINT_KEYS.includes(p) ? p : 'classic'; } catch { return 'classic'; }
+}
+function savePaint(p) {
+  try { localStorage.setItem(PAINT_KEY, p); } catch { /* private window */ }
+}
 
 let toastTimer = 0;
 /** A small message at the bottom of the screen, for things like the graphics setting. */
@@ -356,12 +375,19 @@ function frame(now) {
     const lv = S.gov.update(raw);
     if (lv !== null) { S.scene.setLevel(lv); toast(`Graphics lowered to keep the race smooth: ${S.gov.label}`); }
   }
+  if (raw > 0 && raw < 1) S.ema = S.ema ? S.ema * 0.93 + raw * 0.07 : raw; // smoothed frame time, for the counter
+  if (S.scene && S.gov.scale !== S.scene.scale) S.scene.setScale(S.gov.scale);
+  if (S.showFps && (S.fpsT -= raw) <= 0) {
+    S.fpsT = 0.4;
+    setText('#g-fps', `${Math.round(1 / (S.ema || 1))} fps · ${Math.round((S.scene?.scale ?? 1) * 100)}% res`);
+  }
   const input = readInput();
   const R = S.race;
   if (S.screen === 'race' && !S.paused && R) {
     S.acc += dt;
     let guard = 0;
     while (S.acc >= SIM && guard++ < 12) {
+      snapshot(R.player.car, S.snap.p); snapshot(R.ai.car, S.snap.a); S.snap.ok = true; // the picture blends from here to the next state
       R.step(SIM, input);
       S.acc -= SIM;
       for (const e of R.events) onEvent(e);
@@ -381,7 +407,10 @@ function frame(now) {
       pick: racing && input.pick && R.room > 0,
       brake: racing && input.brake > 0,
       finishView: !racing,
+      showroom: S.screen === 'robot',
       racing,
+      prev: racing && S.snap.ok ? S.snap : null, // draw between the last two steps, so 120 and 144 Hz screens move smoothly
+      alpha: S.acc / SIM,
     });
     const c = R.player.car;
     S.audio.update({
@@ -540,10 +569,11 @@ function buildDom(root) {
       <div class="g-count" id="g-count" hidden></div>
       <div class="g-banner" id="g-banner" aria-live="polite"></div>
       <div class="g-card-s g-map"><canvas id="g-map" width="240" height="240" aria-label="Road map"></canvas></div>
-      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift (hold in a slide, let go to boost)</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>G</kbd> graphics</span><span><kbd>Esc</kbd> pause</span></div>
+      <div class="g-keys"><span><kbd>W</kbd> go</span><span><kbd>S</kbd> front brake</span><span><kbd>A</kbd><kbd>D</kbd> steer</span><span><kbd>Space</kbd> drift (hold in a slide, let go to boost)</span><span><kbd>Shift</kbd> pick up dust</span><span><kbd>G</kbd> graphics</span><span><kbd>P</kbd> frame rate</span><span><kbd>Esc</kbd> pause</span></div>
     </div>
     <div class="g-screen" id="g-screen"></div>
     <div class="g-toast" id="g-toast" role="status"></div>
+    <div class="g-fps mono" id="g-fps" hidden></div>
     <button class="g-exit" id="g-exit" type="button">Back to viewer</button>`;
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
@@ -555,6 +585,18 @@ function buildDom(root) {
 function act(name) {
   if (!S) return;
   const [verb, arg] = name.split(':');
+  if (verb === 'paint') {
+    if (!PAINT_KEYS.includes(arg)) return;
+    S.paint = arg;
+    savePaint(arg);
+    S.scene?.setPaint(arg);
+    for (const b of S.root.querySelectorAll('.g-swatch')) {
+      const on = b.dataset.act === `paint:${arg}`;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-pressed', String(on));
+    }
+    return;
+  }
   if (verb === 'robot') {
     S.robotId = arg;
     S.oppId = otherRobot(arg);
@@ -585,6 +627,13 @@ addEventListener('keydown', (e) => {
     saveMode(S.gov.cycle());
     S.scene?.setLevel(S.gov.level);
     toast(`Graphics: ${S.gov.label}`);
+    return;
+  }
+  if (e.code === 'KeyP' && !e.repeat && !e.metaKey && !e.ctrlKey) { // P shows or hides the frame rate
+    S.showFps = !S.showFps;
+    const el = $('#g-fps', S.root);
+    el.hidden = !S.showFps;
+    S.fpsT = 0;
     return;
   }
   if (e.code !== 'Escape') return;

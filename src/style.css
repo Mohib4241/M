@@ -445,3 +445,29 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
 /* Race mode: a small message at the bottom of the screen */
 .g-toast { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: rgba(7, 13, 19, 0.82); border: 1px solid rgba(255, 255, 255, 0.16); font-size: 13px; opacity: 0; transition: opacity 0.25s; pointer-events: none; z-index: 3; white-space: nowrap; }
 .g-toast.show { opacity: 1; }
+
+/* Race mode: the robot screen. The card sits on the left and the robot turns in 3D beside it, so a colour change shows at once. */
+.game[data-screen='robot'] .g-screen { background: linear-gradient(90deg, rgba(5, 10, 16, 0.86) 0%, rgba(5, 10, 16, 0.5) 42%, rgba(5, 10, 16, 0.08) 72%, rgba(5, 10, 16, 0) 100%); place-items: center start; }
+.g-card.g-side { width: min(500px, 100%); margin-left: clamp(0px, 4vw, 72px); padding: 22px; }
+.g-side header h2 { font-size: 30px; }
+.g-side .g-robots { grid-template-columns: 1fr; gap: 10px; }
+.g-side .g-robot { padding: 12px 16px; gap: 3px; grid-template-columns: 1fr 1fr; align-items: baseline; }
+.g-side .g-robot .g-kicker, .g-side .g-robot b, .g-side .g-robot small, .g-side .g-robot dl { grid-column: 1 / -1; }
+.g-side .g-robot b { font-size: 22px; }
+.g-side .g-robot small { font-size: 12.5px; line-height: 1.35; }
+.g-side .g-robot dl { margin-top: 4px; }
+.g-paints { display: flex; align-items: center; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+.g-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(238, 246, 251, 0.6); }
+.g-swatches { display: flex; gap: 8px; }
+.g-swatch { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 13px; color: #eef6fb; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 999px; padding: 5px 12px 5px 6px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.g-swatch i { width: 20px; height: 20px; border-radius: 50%; background: var(--sw); border: 2px solid rgba(255, 255, 255, 0.45); box-shadow: inset 0 -4px 6px rgba(0, 0, 0, 0.25); }
+.g-swatch:hover { background: rgba(255, 255, 255, 0.1); }
+.g-swatch.on { border-color: var(--accent); background: rgba(var(--accent-rgb), 0.16); }
+.g-swatch.on i { border-color: #fff; }
+.g-swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.g-fps { position: absolute; left: 50%; top: 78px; transform: translateX(-50%); font-size: 12px; padding: 3px 10px; border-radius: 999px; background: rgba(7, 13, 19, 0.7); border: 1px solid rgba(255, 255, 255, 0.14); color: #bff6ff; z-index: 3; pointer-events: none; }
+.g-fps[hidden] { display: none; }
+@media (max-width: 900px) {
+  .game[data-screen='robot'] .g-screen { place-items: center; background: radial-gradient(120% 90% at 50% 40%, rgba(5, 10, 16, 0.2), rgba(5, 10, 16, 0.78)); }
+  .g-card.g-side { margin-left: 0; }
+}

@@ -143,6 +143,7 @@ A small game over the same robots. Click **Race mode** in the left panel, choose
 | `Space` | Drift brake: the rear lets go, so you can slide round a bend. Hold it in a slide to charge a boost, let go to use it |
 | `Shift` (or `Ctrl`, or `Command`) | Pick up dust. Hold it over the dust in front of the robot; the grains go into the tank (150 at most) |
 | `G` | Graphics setting: Auto, High, Medium, Low (see below) |
+| `P` | Show or hide the frame rate (and the render resolution) |
 | `Esc` | Pause |
 
 Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of dust in the tank. The lap card and the final table show each lap.
@@ -153,7 +154,13 @@ Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of d
 
 **Graphics.** The race is drawn into a floating-point (HDR) buffer, so neon, lamps, flames and sparks can be brighter than white and glow through a bloom pass. The robots are glossy race-painted copies of the same models (a body colour, dark trim, a number roundel and a side stripe), with headlights that throw a beam and a pool of light on the road, tail lights that brighten under the front brake, and an underglow. Their paint mirrors the club through a small reflection map drawn from just above the start line. At speed there is a soft radial blur, a colour split during a boost, and a vignette.
 
-`G` steps the setting through Auto, High, Medium and Low, and the choice is remembered in the browser (`armory-gfx`). **High** adds bloom, sharper pixels and a large shadow map. **Medium** drops bloom. **Low** drops all post-processing. **Auto** starts on High, ignores the first 2.5 seconds, and steps down a level whenever the frame rate stays under 28 for 1.5 seconds; it never steps back up on its own, so it cannot flip back and forth. The rule is in `game/quality.js` and is tested without a GPU.
+`G` steps the setting through Auto, High, Medium and Low, and the choice is remembered in the browser (`armory-gfx`). **High** adds bloom, sharper pixels and a large shadow map. **Medium** drops bloom. **Low** drops all post-processing. **Auto** starts on High and, like the dynamic resolution of a console game, reacts to a sagging frame rate in two stages. First it draws fewer pixels (85%, then 70% of the width and height) and lets the browser stretch them, which keeps the look and the bloom; this starts when the frame rate stays under 52 for 1.2 seconds. Only if it is still under 28 at 70% does it drop a level. While a lower scale holds a steady 57 or more it tries the next scale up (after 20 seconds, and after twice as long each time a try fails), so one stutter does not leave the picture soft for good. The first 2.5 seconds are ignored. The rule is in `game/quality.js` and is tested without a GPU. Press `P` to see the frame rate and the current render resolution.
+
+**Smooth on fast screens.** The race steps at 60 Hz, but each frame draws the state between the last two steps (`game/interp.js`), so a 120 or 144 Hz screen shows smooth motion instead of the same picture two or three times. The cost is one step (about 16 ms) of delay. The frame loop itself is not capped: it runs at the screen's refresh rate.
+
+**Camera.** A close chase camera sits above and behind the robot and looks well down the road, so the robot rides low in the frame and the bend ahead shows. It follows where the robot is going more than where it points, so in a drift the robot swings round in front of it and shows its side. It pulls back and widens as speed builds, widens and shakes slightly under a boost, and the menu screen turns slowly round the robot instead. The numbers are in `game/chasecam.js`.
+
+**Body colour.** On the robot screen, under the two robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`armory-paint`).
 
 The game is a stylised model, not the real robot. Both robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. It needs a keyboard, so it does not run on phones.
 
@@ -197,7 +204,8 @@ src/
                  meshes), fx.js (smoke, trails, sparks, flames), textures.js (drawn
                  textures), audio.js (synthesised sound), scene3d.js and models.js (the
                  scene and the robots as cars), livery.js (race paint, lights, decals),
-                 post.js (bloom and speed pass), quality.js (graphics level rule),
+                 post.js (bloom and speed pass), quality.js (graphics level and render scale),
+                 chasecam.js (camera maths), interp.js (drawing between steps),
                  index.js (screens, HUD, loop)
   body.html, style.css
 jarvis.py        Hand tracking server (MediaPipe) and gesture engine, for local use
