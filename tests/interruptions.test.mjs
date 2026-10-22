@@ -1,25 +1,25 @@
-// The interruption data: every alarm in the workbook belongs to one type, every type points to parts
-// that exist on both robots, and the figures agree with the workbook's own totals.
+// The interruption data: every recorded alarm belongs to one type, every type points to parts that
+// exist on both robots, and the figures add up.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
 import { STATS, SOURCE } from '../src/data/interruption-stats.js';
-import { TYPES, CATEGORIES, CATEGORY_ORDER, partsFor, typeStats, totalEvents, ranked, fmtHours, wording, DATA_MODEL, typesForPart, alarmCodes, modelCounts } from '../src/data/interruptions.js';
+import { TYPES, CATEGORIES, CATEGORY_ORDER, partsFor, typeStats, totalEvents, ranked, fmtHours, wording, typesForPart, alarmCodes } from '../src/data/interruptions.js';
 
 const ROBOTS = { phantas, cc1pro };
 
-test('interruptions: every alarm code in the workbook belongs to exactly one type, and every type code is in the workbook', () => {
+test('interruptions: every recorded alarm code belongs to exactly one type, and every type code was recorded', () => {
   const seen = new Map();
   for (const t of TYPES) for (const c of t.codes) {
-    assert.ok(STATS[c], `${t.id}: code ${c} is not in the workbook`);
+    assert.ok(STATS[c], `${t.id}: code ${c} was never recorded`);
     assert.ok(!seen.has(c), `code ${c} is in both ${seen.get(c)} and ${t.id}`);
     seen.set(c, t.id);
   }
   for (const c of Object.keys(STATS)) assert.ok(seen.has(Number(c)), `code ${c} (${STATS[c].reasons[0]}) has no type`);
 });
 
-test('interruptions: a type has one category, and it is the workbook\'s', () => {
+test('interruptions: a type has one category, and it matches the recorded data', () => {
   for (const t of TYPES) {
     assert.ok(CATEGORIES[t.category], `${t.id}: unknown category ${t.category}`);
     for (const c of t.codes) assert.equal(STATS[c].category, t.category, `${t.id} code ${c}`);
@@ -42,50 +42,46 @@ test('interruptions: every type points to real parts on both robots, with at lea
   }
 });
 
-test('interruptions: the figures agree with the workbook', () => {
+test('interruptions: the figures add up', () => {
   assert.equal(totalEvents(), SOURCE.rows);
-  for (const [m, n] of Object.entries(SOURCE.models)) assert.equal(totalEvents(m), n, m);
+  assert.equal(totalEvents(), 827);
   const byId = Object.fromEntries(TYPES.map((t) => [t.id, t]));
-  // spot checks against the sheet, counted by hand from the Interruptions tab
-  assert.equal(typeStats(byId.suction, 'phantas').n, 83);
-  assert.equal(typeStats(byId['waste-tank'], 'phantas').n, 33);
-  assert.equal(typeStats(byId['waste-tank'], 'omnie').n, 71);
-  assert.equal(typeStats(byId.estop, 'phantas').n, 273);
-  assert.equal(typeStats(byId.estop, null).n, 344); // 273 + 70 on the Omnie + 1 on the Whiz
-  assert.equal(typeStats(byId['dust-bag'], 'phantas').n, 0); // only the Whiz reports it
-  assert.equal(typeStats(byId['dust-bag'], null).n, 19);
-});
-
-test('interruptions: the CC1 Pro has no rows in the workbook, so its own figures are empty and the fleet figures are not', () => {
-  assert.equal(DATA_MODEL.cc1pro, null);
-  const t = TYPES[0];
-  assert.ok(typeStats(t, null).n > 0);
+  // spot checks, counted by hand from the data
+  assert.equal(typeStats(byId.estop).n, 344);
+  assert.equal(typeStats(byId.battery).n, 168);
+  assert.equal(typeStats(byId['waste-tank']).n, 104);
+  assert.equal(typeStats(byId.suction).n, 83);
+  assert.equal(typeStats(byId['dust-bag']).n, 19);
+  assert.equal(typeStats(byId.battery).max, 167.13); // the longest alarm anywhere
+  assert.equal(typeStats(byId['waste-tank']).max, 165.82);
+  assert.equal(typeStats(byId.suction).max, 17.24);
 });
 
 test('interruptions: statistics are consistent', () => {
   for (const t of TYPES) {
-    const s = typeStats(t, null);
+    const s = typeStats(t);
     assert.ok(s.n > 0, t.id);
     assert.ok(s.median >= 0 && s.median <= s.max && s.mean <= s.max + 1e-9, t.id);
     assert.ok(Math.abs(s.hours - s.mean * s.n) < 1e-6, t.id);
   }
-  // the median of an even-length list is the mean of the middle two
-  const fake = { codes: [103] };
-  assert.ok(typeStats(fake, 'whiz').n === 42 && Number.isFinite(typeStats(fake, 'whiz').median));
+  // an even-length list takes the mean of the middle two, an odd one the middle value
+  assert.equal(typeStats({ codes: [103] }).n, 42);
+  assert.ok(Number.isFinite(typeStats({ codes: [103] }).median));
+  assert.equal(typeStats({ codes: [999999] }).n, 0); // a code nobody recorded
 });
 
-test('interruptions: the dropdown order is by category, then the most frequent first on the open robot', () => {
-  const r = ranked('phantas');
+test('interruptions: the dropdown order is by category, then the most frequent first', () => {
+  const r = ranked();
   assert.equal(r.length, TYPES.length);
   const cats = r.map((t) => CATEGORY_ORDER.indexOf(t.category));
   assert.deepEqual(cats, [...cats].sort((a, b) => a - b), 'grouped by category in order');
-  const notice = r.filter((t) => t.category === 'Notice').map((t) => t.id);
-  assert.deepEqual(notice, ['estop', 'bumper-hit']); // 273 before 14 on the Phantas
+  assert.deepEqual(r.filter((t) => t.category === 'Notice').map((t) => t.id), ['estop', 'bumper-hit']); // 344 before 14
   const maint = r.filter((t) => t.category === 'Maintenance').map((t) => t.id);
-  assert.equal(maint[0], 'battery'); // 60 on the Phantas, ahead of the waste tank's 33
-  // the CC1 Pro has no rows of its own, so the fleet counts decide
-  const c = ranked('cc1pro').filter((t) => t.category === 'Maintenance').map((t) => t.id);
-  assert.equal(c[0], 'battery'); // 164 fleet-wide, ahead of the waste tank's 104
+  assert.deepEqual(maint.slice(0, 2), ['battery', 'waste-tank']); // 168, then 104
+  for (const cat of CATEGORY_ORDER) {
+    const ns = r.filter((t) => t.category === cat).map((t) => typeStats(t).n);
+    assert.deepEqual(ns, [...ns].sort((a, b) => b - a), `${cat} is most frequent first`);
+  }
 });
 
 test('interruptions: alarm lengths read well', () => {
@@ -109,9 +105,8 @@ test('interruptions: a part knows which interruptions point at it, and every mai
   assert.ok(typesForPart('battery', 'cc1pro').some((x) => x.type.id === 'battery'));
 });
 
-test('interruptions: alarm codes and per-model counts add up', () => {
+test('interruptions: alarm codes add up to the type\'s count', () => {
   const estop = TYPES.find((t) => t.id === 'estop');
   assert.deepEqual(alarmCodes(estop).map((c) => [c.code, c.n]), [[20022, 343], [500, 1]]);
-  assert.deepEqual(modelCounts(estop), { omnie: 70, phantas: 273, whiz: 1 });
-  for (const t of TYPES) assert.equal(alarmCodes(t).reduce((s, c) => s + c.n, 0), typeStats(t, null).n, t.id);
+  for (const t of TYPES) assert.equal(alarmCodes(t).reduce((s, c) => s + c.n, 0), typeStats(t).n, t.id);
 });

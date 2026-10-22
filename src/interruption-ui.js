@@ -2,7 +2,7 @@
 // makes the open robot glow where it comes from (see Stage.setAlert), opens the suit far enough to
 // show it, and says which section and part it is. The data and the part mapping are in
 // data/interruptions.js.
-import { TYPES, CATEGORIES, partsFor, typeStats, totalEvents, ranked, fmtHours, DATA_MODEL, MODEL_LABEL, SOURCE, typesForPart, alarmCodes, modelCounts } from './data/interruptions.js';
+import { TYPES, CATEGORIES, partsFor, typeStats, totalEvents, ranked, fmtHours, SOURCE, typesForPart, alarmCodes } from './data/interruptions.js';
 
 export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, onChange }) {
   const btn = $('#intr-btn'), list = $('#intr-list'), banner = $('#alert-banner');
@@ -14,22 +14,12 @@ export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, on
   let cursor = 0;
   let rows = [];
 
-  // The workbook's model for the open robot, or null: then the figures are for every model in it.
-  const dataModel = () => DATA_MODEL[robotId()] ?? null;
-  const has = () => dataModel() !== null;
   const active = () => (activeId ? typeById(activeId) : null);
-  const count = (t) => typeStats(t, dataModel()).n;
-
-  function basis() {
-    const label = getDef().short;
-    if (has()) return `Counts are ${MODEL_LABEL[dataModel()] || label} events in the data workbook (${totalEvents(dataModel())} in all).`;
-    const models = Object.entries(SOURCE.models).map(([m, n]) => `${MODEL_LABEL[m] || m} ${n}`).join(', ');
-    return `The data workbook has no ${label} rows, so counts are for every robot in it (${models}). Parts are matched by what they do.`;
-  }
+  const count = (t) => typeStats(t).n;
 
   // ───────────── the dropdown ─────────────
   function buildList() {
-    rows = ranked(robotId());
+    rows = ranked();
     const maxN = Math.max(1, ...rows.map(count));
     let html = '', last = null;
     for (const t of rows) {
@@ -38,12 +28,12 @@ export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, on
       const n = count(t);
       html += `<li class="o" role="option" id="intr-o-${t.id}" data-id="${t.id}" aria-selected="${t.id === activeId}" style="--c:${cat.color}">
         <span class="o-title">${esc(t.title)}</span>
-        <span class="o-meta"><span class="o-codes mono">${t.codes.join(' · ')}</span><span class="o-bar" aria-hidden="true"><b style="width:${n ? Math.max(4, (n / maxN) * 100) : 0}%"></b></span><span class="o-n mono" title="${has() ? 'events on this model' : 'events across every model in the workbook'}">${n}</span></span>
+        <span class="o-meta"><span class="o-codes mono">${t.codes.join(' · ')}</span><span class="o-bar" aria-hidden="true"><b style="width:${n ? Math.max(4, (n / maxN) * 100) : 0}%"></b></span><span class="o-n mono" title="times recorded">${n}</span></span>
       </li>`;
     }
     list.innerHTML = html;
     $('#intr-count').textContent = TYPES.length;
-    $('#intr-basis').textContent = basis();
+    $('#intr-basis').textContent = `Counts are recorded interruptions across the fleet (${totalEvents()} in all).`;
   }
 
   function markCursor() {
@@ -137,12 +127,10 @@ export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, on
 
   function cardHtml(t) {
     const rid = robotId(), def = getDef(), m = partsFor(t, rid), cat = CATEGORIES[t.category];
-    const own = typeStats(t, dataModel()), fleet = typeStats(t, null);
-    const s = has() ? own : fleet;
-    const where = has() ? '' : ' (all models)';
+    const s = typeStats(t);
     const secs = [...new Set(m.main.map((id) => partOf(id)?.group).filter(Boolean))];
-    const share = has() && totalEvents(dataModel()) ? Math.round((own.n / totalEvents(dataModel())) * 1000) / 10 : null;
-    const by = Object.entries(modelCounts(t)).map(([k, n]) => `${MODEL_LABEL[k] || k} ${n}`).join(' · ');
+    const total = totalEvents();
+    const share = total ? Math.round((s.n / total) * 1000) / 10 : null;
     const codes = alarmCodes(t);
     const partBtn = (id, rel) => `<button class="ic-part${rel ? ' rel' : ''}" type="button" data-id="${id}" style="--c:${gcol(partOf(id).group)}"><i></i>${esc(partOf(id).name)}</button>`;
     return `
@@ -156,15 +144,14 @@ export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, on
         ${m.fit === 'nearest' ? `<p class="ic-note"><b>Nearest match.</b> ${esc(m.note)}</p>` : ''}
         <p class="ic-hint">Click a part to open its specs.</p>
       </div>
-      <div class="d-sec"><h3>In the data${esc(where)}</h3>
-        <div class="kpis ic-kpis">${stat(has() ? 'Events' : 'Events (fleet)', String(s.n), share !== null && own.n ? `${share}% of ${def.short}` : '')}${stat('Typical alarm', s.n ? fmtHours(s.median) : '–', 'median')}${stat('Longest', s.n ? fmtHours(s.max) : '–', 'alarm stayed open')}</div>
-        ${has() && !own.n ? `<p class="ic-note">The workbook has no “${esc(t.title)}” events for the ${esc(def.short)}. ${fleet.n ? `Other models report ${fleet.n}: ${esc(by)}.` : ''}</p>` : ''}
-        ${!has() ? `<p class="ic-note">The workbook has no ${esc(def.short)} rows. These figures are for every model in it: ${esc(by)}.</p>` : (own.n && fleet.n > own.n ? `<p class="ic-fleet">All models in the workbook: ${fleet.n} events (${esc(by)}).</p>` : '')}
+      <div class="d-sec"><h3>How often</h3>
+        <div class="kpis ic-kpis">${stat('Recorded', String(s.n), share !== null ? `${share}% of all` : '')}${stat('Typical alarm', fmtHours(s.median), 'median')}${stat('Longest', fmtHours(s.max), 'alarm stayed open')}</div>
+        <p class="ic-fleet">Figures are across the fleet.</p>
       </div>
       <details class="more d-sec"><summary>Alarm wording and codes</summary>
         <ul class="ic-codelist">${codes.map((c) => `<li><span class="mono">${c.code}</span><span>${esc(c.reason)}</span><em class="mono">${c.n}</em></li>`).join('')}</ul>
       </details>
-      <div class="honest">Which part an alarm points to is our reading of what each part does. The workbook names the alarm, not the part. ${esc(SOURCE.file)}, ${SOURCE.rows} events.</div>`;
+      <div class="honest">Which part an alarm points to is our reading of what each part does. The recorded data names the alarm, not the part. Based on ${SOURCE.rows} recorded interruptions.</div>`;
   }
 
   /** The interruption card for the details panel, or '' when none is chosen. */
