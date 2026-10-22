@@ -695,7 +695,7 @@ export class Stage {
       if (on <= 0.01) continue;
       p.root.localToWorld(f.v.copy(p.anchorLocal));
       // sized to the part but never huge: a big tank must not flood the view
-      const r = clamp(p.radius * 0.9, 0.9, 3);
+      const r = clamp(p.radius * 0.9, 0.9, 2.4);
       f.halo.position.copy(f.v);
       const hs = r * (2.3 + 0.4 * pulse);
       f.halo.scale.set(hs, hs, 1);
@@ -995,7 +995,7 @@ export class Stage {
 
   // Fit the camera to where the parts actually are right now (or to the filtered group),
   // using the current view direction, so every open state stays framed.
-  _fit() {
+  _fit(only = null) {
     const c = this.cam, e = this.e;
     const f = new THREE.Vector3(Math.sin(c.azC) * Math.cos(c.elC), Math.sin(c.elC), Math.cos(c.azC) * Math.cos(c.elC));
     const right = new THREE.Vector3(0, 1, 0).cross(f).normalize();
@@ -1003,7 +1003,7 @@ export class Stage {
     let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
     const gf = this.groupFilter;
     for (const p of this.parts) {
-      if (gf && p.def.group !== gf) continue;
+      if (only ? !only.includes(p) : gf && p.def.group !== gf) continue;
       const w = this.anchorWorld(p);
       const r = p.radius * 0.55;
       const x = w.dot(right), y = w.dot(up), z = w.dot(f);
@@ -1042,16 +1042,10 @@ export class Stage {
     }
 
     else if (this.alert) {
-      // frame the pointed-at parts: their centre, and far enough back to hold them all
-      const A = this.alert.main, c0 = this._alertC || (this._alertC = new THREE.Vector3());
-      c0.set(0, 0, 0);
-      for (const p of A) c0.add(this.anchorWorld(p));
-      c0.multiplyScalar(1 / A.length);
-      let rad = 0;
-      for (const p of A) rad = Math.max(rad, this.anchorWorld(p).distanceTo(c0) + p.radius * 0.7);
-      tx = c0.x; ty = c0.y; tz = c0.z;
-      const aspect = Math.max(0.3, (this.W - this.insets.left - this.insets.right) / Math.max(1, this.H - this.insets.bottom));
-      dist = clamp(rad * 3 + 5.5, 9, 30) * Math.max(1, 0.6 / aspect) * this.userZoom;
+      // frame the pointed-at parts: all of them inside the free area, clear of the panels and the dock
+      const f = this._fit(this.alert.main);
+      tx = f.center.x; ty = f.center.y; tz = f.center.z;
+      dist = f.dist * this.userZoom;
     }
 
     // auto-orbit when idle

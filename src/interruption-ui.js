@@ -157,8 +157,8 @@ export function initInterruptions({ stage, app, $, esc, getDef, groups, gcol, on
         <p class="ic-hint">Click a part to open its specs.</p>
       </div>
       <div class="d-sec"><h3>In the data${esc(where)}</h3>
-        <div class="kpis ic-kpis">${stat(has() ? 'Events' : 'Events (fleet)', String(s.n), share !== null ? `${share}% of ${def.short}` : '')}${stat('Typical alarm', s.n ? fmtHours(s.median) : '–', 'median')}${stat('Longest', s.n ? fmtHours(s.max) : '–', 'alarm stayed open')}</div>
-        ${has() && !own.n ? `<p class="ic-note">The workbook has no ${esc(t.title.toLowerCase())} events for the ${esc(def.short)}. ${fleet.n ? `Other models report ${fleet.n}: ${esc(by)}.` : ''}</p>` : ''}
+        <div class="kpis ic-kpis">${stat(has() ? 'Events' : 'Events (fleet)', String(s.n), share !== null && own.n ? `${share}% of ${def.short}` : '')}${stat('Typical alarm', s.n ? fmtHours(s.median) : '–', 'median')}${stat('Longest', s.n ? fmtHours(s.max) : '–', 'alarm stayed open')}</div>
+        ${has() && !own.n ? `<p class="ic-note">The workbook has no “${esc(t.title)}” events for the ${esc(def.short)}. ${fleet.n ? `Other models report ${fleet.n}: ${esc(by)}.` : ''}</p>` : ''}
         ${!has() ? `<p class="ic-note">The workbook has no ${esc(def.short)} rows. These figures are for every model in it: ${esc(by)}.</p>` : (own.n && fleet.n > own.n ? `<p class="ic-fleet">All models in the workbook: ${fleet.n} events (${esc(by)}).</p>` : '')}
       </div>
       <details class="more d-sec"><summary>Alarm wording and codes</summary>

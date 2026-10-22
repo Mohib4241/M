@@ -339,7 +339,8 @@ function updateCallouts() {
 
   const Ls = show.filter((s) => s.x < cx).sort((a, b) => a.y - b.y);
   const Rs = show.filter((s) => s.x >= cx).sort((a, b) => a.y - b.y);
-  const top = 64, bottom = H - stage.insets.bottom - 10;
+  const banner = stage.alert ? $('#alert-banner') : null; // labels start below the interruption banner
+  const top = banner && !banner.hidden ? Math.max(64, banner.offsetHeight + 36) : 64, bottom = H - stage.insets.bottom - 10;
   const place = (arr, dir) => {
     let last = top - GAP;
     for (const it of arr) { it.ly = Math.max(it.y, last + GAP); last = it.ly; }
@@ -400,7 +401,7 @@ new ResizeObserver(layoutInsets).observe($('#right'));
 addEventListener('orientationchange', layoutInsets);
 
 // ─────────────── boot ───────────────
-const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => showOverview() });
+const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => { hint(false); showOverview(); } });
 useRobot('phantas');
 layoutInsets();
 initJarvis({ stage, app, $ });
