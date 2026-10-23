@@ -436,7 +436,7 @@ export class Stage {
     const tone = this.look === 'studio' && def.studio ? def.studio : def;
     this._setAccent(tone.accent, tone.accent2);
     this.baseY = this.look === 'studio' ? 0 : def.hover;
-    const ctx = { accent: this.accent, accent2: this.accent2, look: this.look };
+    const ctx = { accent: this.accent, accent2: this.accent2, look: this.look, mats: def.mats ? def.mats[this.look] : null };
 
     const robot = (this.robot = new THREE.Group());
     robot.position.y = this.baseY;

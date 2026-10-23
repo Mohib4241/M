@@ -29,6 +29,10 @@ export const MATS = {
   lens:     { color: 0x04070a, metalness: 0.9,  roughness: 0.04, emissive: 0x0b3354 },
   screen:   { color: 0x08121c, metalness: 0.2,  roughness: 0.2,  emissive: 0x0e3a5c },
   battery:  { color: 0x1d2631, metalness: 0.5,  roughness: 0.45 },
+  graphite: { color: 0x5d6b7a, metalness: 0.55, roughness: 0.4,  o: 0.97, shell: true },
+  silver:   { color: 0xc3ccd4, metalness: 0.85, roughness: 0.3 },
+  green:    { color: 0x2fe08a, metalness: 0,    roughness: 0.4,  emissive: 0x18c46c },
+  window:   { color: 0xc9f7dc, metalness: 0,    roughness: 0.25, o: 0.9, emissive: 0x4fd88a },
 };
 
 // Studio look: real-material colours and finishes, no emissive glow.
@@ -56,6 +60,10 @@ const STUDIO = {
   lens:     { color: 0x080a0d, metalness: 0.4,  roughness: 0.05, emissive: 0x000000, clearcoat: 1, clearcoatRoughness: 0.03 },
   screen:   { color: 0x0a1118, metalness: 0,    roughness: 0.25, emissive: 0x0c2a44 },
   battery:  { color: 0x2d353d, metalness: 0.3,  roughness: 0.5 },
+  graphite: { color: 0x737b84, metalness: 0.7,  roughness: 0.36, o: 0.98, clearcoat: 0.3 },
+  silver:   { color: 0xc9d0d6, metalness: 0.92, roughness: 0.24 },
+  green:    { color: 0x2fe08a, metalness: 0,    roughness: 0.4,  emissive: 0x1fd27a },
+  window:   { color: 0xd6f7e2, metalness: 0,    roughness: 0.3,  o: 0.92, emissive: 0x6be39a },
 };
 
 const tmpObj = new THREE.Object3D();
@@ -80,6 +88,7 @@ export class Builder {
     let d = isGlow ? { o: 1 } : MATS[key];
     if (!d) throw new Error(`Unknown material "${key}"`);
     if (studio && !isGlow) d = { ...d, ...STUDIO[key] };
+    if (this.ctx.mats && this.ctx.mats[key] && !isGlow) d = { ...d, ...this.ctx.mats[key] }; // this robot's own finish for the key
     let mat;
     if (isGlow) {
       const lit = key === 'led' ? (studio ? 1.4 : 2.4) : (studio ? 0.3 : 1.0);
@@ -243,6 +252,28 @@ export function screenTexture(accent = '#35e0ff') {
     g.fillText(label, 366, y + 33);
   };
   btn(58, 'PAUSE', true); btn(122, 'MODE: SCRUB', false); btn(186, 'WATER', false); btn(250, 'DOCK', false);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// The Phantas screen when idle: a dark glass with a faint pattern and two rounded-square "eyes".
+export function eyesTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 320;
+  const g = c.getContext('2d');
+  g.fillStyle = '#05080b'; g.fillRect(0, 0, 512, 320);
+  g.strokeStyle = 'rgba(150,170,185,.07)'; g.lineWidth = 3;
+  for (let i = 0; i < 6; i++) { g.strokeRect(70 + i * 24, 40 + i * 20, 372 - i * 48, 240 - i * 40); }
+  const eye = (x) => {
+    g.lineJoin = 'round';
+    g.strokeStyle = '#d3dade'; g.lineWidth = 12;
+    g.strokeRect(x - 44, 112, 88, 96);
+    g.strokeStyle = 'rgba(210,220,226,.35)'; g.lineWidth = 3;
+    g.strokeRect(x - 28, 128, 56, 64);
+  };
+  eye(176); eye(336);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;

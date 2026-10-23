@@ -4,7 +4,7 @@ A 3D teardown of two commercial cleaning robots: the **Gausium Phantas** and the
 
 Two looks, switched in the top-left panel:
 
-- **Studio** (default): a photographed-product look. Lacquered white shell, smoked glass, rubber, steel, soft shadows on a light floor, a contact shadow that fades as the robot lifts apart, and weighty spring motion. The floor follows the lowest part, so the sealed robot rests on it and open parts float above it.
+- **Studio** (default): a photographed-product look. Each robot in its own finish (the Phantas in black lacquer, the CC1 Pro in slate grey over a black base), smoked glass, rubber, steel, soft shadows on a light floor, a contact shadow that fades as the robot lifts apart, and weighty spring motion. The floor follows the lowest part, so the sealed robot rests on it and open parts float above it.
 - **Hologram**: the dark HUD version with glowing outlines, a scan beam and bloom.
 
 Open `dist/index.html` in a browser. It is a single self-contained file (Three.js is bundled in). It needs WebGL; the fonts load from Google Fonts when online and fall back to system fonts offline.
@@ -197,7 +197,13 @@ Part names, capacities and specs come from published spec sheets, manuals, parts
 
 The shapes and where parts sit inside are a **schematic reconstruction, not CAD**. Neither manufacturer publishes an exploded 3D model.
 
-The manufacturer sites (`gausium.com`, `academy.pudutech.com`) and the retailer and manual hosts were blocked by the network policy of the environment this was built in, so the facts were gathered from search-result summaries of those pages rather than from reading them in full. That includes `gausium.com/products/phantas/`, whose real photos could not be opened. The Phantas shape follows what the sources describe (compact, rounded, monochrome body, wavy-stripe front shell, integrated handle) but is not traced from product images. The full source list is inside the app (right panel, Sources) and in `src/data/shared.js`. Where sources disagree (for example the CC1 Pro's 15 L vs the base CC1's 17 L tank) the panel says so.
+The outside of both robots, and the two docking stations, are modelled from photographs supplied for this project (listed as a source in the app): the Phantas with its lid, lid-top LiDAR, e-stop and ring button, front pull-handle recess and label field, black body with a bumper skirt and three front windows, graphite side plates; and the CC1 Pro with its sloped slate shell, tilted touch screen, front camera pod, ultrasonic sensors and extended black base. Sizes follow the listed dimensions (Phantas footprint about 440 x 540 mm, CC1 Pro 552 x 629 mm) and the photos' proportions; the inside is still a schematic.
+
+The manufacturer sites (`gausium.com`, `www.pudurobotics.com`, `academy.pudutech.com`) and the retailer and manual hosts were blocked by the network policy of the environment this was built in, so the facts were gathered from search-result summaries of those pages rather than from reading them in full. The full source list is inside the app (right panel, Sources) and in `src/data/shared.js`. Where sources disagree (for example the CC1 Pro's 15 L vs the base CC1's 17 L tank) the panel says so.
+
+## Docking stations
+
+Each robot is shown hooked to its own station, as a separate **Docking station** group (Phantas: an upright arch-shaped dock, 345 x 195 x 689 mm; CC1 Pro: a low charging station, 390 x 390 x 165 mm). With the suit sealed the robot sits against it. Open the suit and the station comes apart on its own, to the right of the robot: shell, indicator window, charging contacts, power board, back cover, cable and base. Pick the **Docking station** chip in the Parts list to look at it alone. The race does not use the stations.
 
 ## Develop
 

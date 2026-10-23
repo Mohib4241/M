@@ -10,6 +10,7 @@ export const GROUPS = {
   power: { label: 'Power & brain',   color: '#f6e05e', studio: '#a58500' },
   drive: { label: 'Drive & frame',   color: '#b79cff', studio: '#7254d0' },
   sense: { label: 'Sensing',         color: '#ff6b8b', studio: '#cf2f58' },
+  dock:  { label: 'Docking station', color: '#7ff0b0', studio: '#2a9d62' },
 };
 
 // How well-sourced a part's data is. Shapes and positions are always schematic.
@@ -20,6 +21,7 @@ export const CONF = {
 };
 
 export const SOURCES = {
+  'photos':    { t: 'Photographs of a Phantas with its dock and of a CC1 Pro, supplied for this project', u: '' },
   'gs-spec':   { t: 'Gausium: Phantas specifications', u: 'https://gausium.com/specs/phantas/' },
   'taski':     { t: 'TASKI Phantas product sheet (Diversey)', u: 'https://taski.com/wp-content/uploads/2024/11/PSS-TASKI_Phantas.pdf' },
   'gs-manual': { t: 'Phantas S1 PRO user manual V1.1', u: 'https://innovi.nl/wp-content/uploads/2025/07/Phantas-User-Manual-EN-V1.1-20240621-.pdf.pdf' },

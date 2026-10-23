@@ -35,6 +35,7 @@ export function carModel(def) {
   const boxes = {}; // where the key parts are, in the car's own frame
 
   for (const pd of def.parts) {
+    if (pd.group === 'dock') continue; // the docking station is not part of the car
     const b = new Builder(ctx);
     b._mats = shared;
     pd.build(b);

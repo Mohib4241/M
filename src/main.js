@@ -102,7 +102,7 @@ function buildCallouts() {
 function bars(level) { return `<span class="bars">${[1, 2, 3].map((i) => `<b class="${i <= level ? 'on' : ''}"></b>`).join('')}</span>`; }
 
 function srcList(keys) {
-  return `<ul class="src">${keys.map((k, i) => `<li><span class="n">${i + 1}</span><a href="${esc(SOURCES[k].u)}" target="_blank" rel="noopener">${esc(SOURCES[k].t)}</a></li>`).join('')}</ul>`;
+  return `<ul class="src">${keys.map((k, i) => `<li><span class="n">${i + 1}</span>${SOURCES[k].u ? `<a href="${esc(SOURCES[k].u)}" target="_blank" rel="noopener">${esc(SOURCES[k].t)}</a>` : `<span>${esc(SOURCES[k].t)}</span>`}</li>`).join('')}</ul>`;
 }
 
 // Spec rows: a long value sits under its label instead of wrapping beside it.
