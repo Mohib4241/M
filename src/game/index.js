@@ -13,6 +13,7 @@ import { PAINT_KEYS, PAINTS, paintSwatch } from './livery.js';
 import { snapshot } from './interp.js';
 import { TANK_MAX } from './dust.js';
 import { CHARGE_MAX, TIER_AT, tierOf } from './drift.js';
+import { attachTouch, wantsTouch, goLandscape, leaveFullscreen } from './touch.js';
 
 export const LAPS = 5;
 const SIM = 1 / 60;
@@ -45,6 +46,13 @@ export function openRace(defs, hooks = {}) {
   };
   S.oppId = otherRobot(S.robotId);
   S.detach = attachKeys();
+  S.touch = wantsTouch();
+  root.classList.toggle('touch-ui', S.touch);
+  if (S.touch) {
+    S.detachTouch = attachTouch($('#g-hud', root));
+    if (S.gov.mode === 'auto') S.gov.level = 1; // phones start without bloom; the governor takes it from there
+  }
+  gfxLabel();
   if (!renderer) renderer = createRenderer($('#game-gl'));
   hooks.onOpen?.();
   onResize();
@@ -61,6 +69,10 @@ export function closeRace() {
   cancelAnimationFrame(S.raf);
   for (const t of S.timers) clearTimeout(t);
   S.detach?.();
+  S.detachTouch?.();
+  leaveFullscreen();
+  S.root.classList.remove('rot', 'touch-ui');
+  S.root.style.width = S.root.style.height = S.root.style.transform = '';
   S.scene?.dispose();
   S.audio.stop();
   S.root.hidden = true;
@@ -74,7 +86,15 @@ export function closeRace() {
 function onVisibility() { if (document.hidden && S?.screen === 'race') pause(true); }
 function onResize() {
   if (!renderer) return;
-  const w = innerWidth, h = innerHeight;
+  // a phone held upright: turn the race on its side, so it is always landscape (where the browser cannot lock it)
+  const rot = !!S?.touch && innerHeight > innerWidth;
+  if (S) {
+    S.root.classList.toggle('rot', rot);
+    S.root.style.width = rot ? `${innerHeight}px` : '';
+    S.root.style.height = rot ? `${innerWidth}px` : '';
+    S.root.style.transform = rot ? `translateX(${innerWidth}px) rotate(90deg)` : '';
+  }
+  const w = rot ? innerHeight : innerWidth, h = rot ? innerWidth : innerHeight;
   renderer.setSize(w, h, false);
   S?.scene?.resize(w, h);
 }
@@ -168,7 +188,7 @@ function robotScreen() {
     <p>You race the other robot, round five random roads. Each lap is about a minute.</p></header>
     <div class="g-robots">${robotCard('phantas')}${robotCard('cc1pro')}</div>
     ${paintRow()}
-    <p class="g-note">Keys: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust, <kbd>G</kbd> graphics, <kbd>P</kbd> frame rate. Race mode needs a keyboard, not a phone.</p>
+    <p class="g-note">Keys: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust, <kbd>G</kbd> graphics, <kbd>P</kbd> frame rate. On a phone or tablet, use the buttons on screen: steer on the left, Go and Brake on the right.</p>
     <div class="g-actions"><button class="g-btn primary" data-focus data-act="to-roads">Next: choose roads →</button><button class="g-btn" data-act="exit">Back to viewer</button></div>
   </div>`;
 }
@@ -333,6 +353,20 @@ function savePaint(p) {
   try { localStorage.setItem(PAINT_KEY, p); } catch { /* private window */ }
 }
 
+/** Next graphics setting: Auto, High, Medium, Low. */
+function cycleGfx() {
+  saveMode(S.gov.cycle());
+  S.scene?.setLevel(S.gov.level);
+  toast(`Graphics: ${S.gov.label}`);
+  gfxLabel();
+}
+function gfxLabel() {
+  const b = $('#g-gfx', S.root); if (!b) return;
+  const name = S.gov.mode === 'auto' ? 'Auto' : S.gov.mode[0].toUpperCase() + S.gov.mode.slice(1);
+  b.querySelector('b').textContent = name;
+  b.setAttribute('aria-label', `Graphics: ${name}. Tap to change.`);
+}
+
 let toastTimer = 0;
 /** A small message at the bottom of the screen, for things like the graphics setting. */
 function toast(text) {
@@ -373,7 +407,7 @@ function frame(now) {
   S.last = now;
   if (S.scene && !window.__catalogueNoAdapt) {
     const lv = S.gov.update(raw);
-    if (lv !== null) { S.scene.setLevel(lv); toast(`Graphics lowered to keep the race smooth: ${S.gov.label}`); }
+    if (lv !== null) { S.scene.setLevel(lv); toast(`Graphics lowered to keep the race smooth: ${S.gov.label}`); gfxLabel(); }
   }
   if (raw > 0 && raw < 1) S.ema = S.ema ? S.ema * 0.93 + raw * 0.07 : raw; // smoothed frame time, for the counter
   if (S.scene && S.gov.scale !== S.scene.scale) S.scene.setScale(S.gov.scale);
@@ -574,6 +608,10 @@ function buildDom(root) {
     <div class="g-screen" id="g-screen"></div>
     <div class="g-toast" id="g-toast" role="status"></div>
     <div class="g-fps mono" id="g-fps" hidden></div>
+    <div class="g-tbtns">
+      <button class="g-tbtn" id="g-gfx" type="button" data-act="gfx"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span>Graphics</span><b>Auto</b></button>
+      <button class="g-tbtn g-pausebtn" type="button" data-act="pause" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg></button>
+    </div>
     <button class="g-exit" id="g-exit" type="button">Back to viewer</button>`;
   root.addEventListener('click', (e) => {
     const b = e.target.closest('[data-act]');
@@ -609,11 +647,13 @@ function act(name) {
     case 'to-roads': S.results = []; S.lap = 0; showScreen('roads'); break;
     case 'to-robot': S.results = []; showScreen('robot'); break;
     case 'shuffle': S.roads = makeRoads((Math.random() * 1e9) | 0); buildScene(S.roads[0]); showScreen('roads'); break;
-    case 'start': S.results = []; startLap(0); break;
+    case 'start': if (S.touch) goLandscape(); S.results = []; startLap(0); break;
     case 'next-lap': nextLap(); break;
     case 'final': showScreen('final'); break;
     case 'again': S.results = []; S.roads = makeRoads((Math.random() * 1e9) | 0); showScreen('roads'); break;
-    case 'resume': pause(false); break;
+    case 'resume': if (S.touch) goLandscape(); pause(false); break;
+    case 'pause': pause(true); break;
+    case 'gfx': cycleGfx(); break;
     case 'restart-lap': startLap(S.lap); break;
     case 'exit': closeRace(); break;
     default: break;
@@ -623,12 +663,7 @@ function act(name) {
 // Esc pauses and resumes; the rest of the keys are read by the race.
 addEventListener('keydown', (e) => {
   if (!S) return;
-  if (e.code === 'KeyG' && !e.repeat && !e.metaKey && !e.ctrlKey) { // G steps through the graphics settings
-    saveMode(S.gov.cycle());
-    S.scene?.setLevel(S.gov.level);
-    toast(`Graphics: ${S.gov.label}`);
-    return;
-  }
+  if (e.code === 'KeyG' && !e.repeat && !e.metaKey && !e.ctrlKey) { cycleGfx(); return; } // G steps through the graphics settings
   if (e.code === 'KeyP' && !e.repeat && !e.metaKey && !e.ctrlKey) { // P shows or hides the frame rate
     S.showFps = !S.showFps;
     const el = $('#g-fps', S.root);

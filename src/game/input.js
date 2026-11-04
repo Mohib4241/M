@@ -1,5 +1,7 @@
 // Keyboard controls for the race. Uses physical key codes, so the keys sit in the same place on
 // any layout. Arrow keys work as well as W A S D.
+import { pad } from './touch.js';
+
 const down = new Set();
 
 const onDown = (e) => {
@@ -31,11 +33,12 @@ export function attachKeys() {
 /** The race input for this moment, read from the keys that are held. */
 export function readInput() {
   const held = (...codes) => (codes.some((c) => down.has(c)) ? 1 : 0);
+  // the keys and the on-screen buttons (touch.js) together
   return {
-    throttle: held('KeyW', 'ArrowUp'),
-    brake: held('KeyS', 'ArrowDown'), // S is the front brake
-    hand: held('Space'), // drift brake
-    steer: held('KeyA', 'ArrowLeft') - held('KeyD', 'ArrowRight'), // +1 is left
-    pick: held('ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight'),
+    throttle: held('KeyW', 'ArrowUp') || pad.throttle,
+    brake: held('KeyS', 'ArrowDown') || pad.brake, // S is the front brake
+    hand: held('Space') || pad.hand, // drift brake
+    steer: Math.max(held('KeyA', 'ArrowLeft'), pad.left) - Math.max(held('KeyD', 'ArrowRight'), pad.right), // +1 is left
+    pick: held('ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'MetaLeft', 'MetaRight') || pad.pick,
   };
 }

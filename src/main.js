@@ -5,6 +5,7 @@ import cc1pro from './data/cc1pro.js';
 import { initJarvis } from './jarvis.js';
 import { openRace, isRaceOpen } from './game/index.js';
 import { initInterruptions } from './interruption-ui.js';
+import { initGuides } from './guide-ui.js';
 
 const ROBOTS = { phantas, cc1pro };
 const $ = (s, r = document) => r.querySelector(s);
@@ -54,6 +55,7 @@ function useRobot(id, { intro = true } = {}) {
   buildList();
   buildCallouts();
   intr.onRobot(); // an interruption that is on points at the same thing on this robot's parts
+  guides.onRobot(); // a guide stays open only on the robot it is written for
   showOverview();
   $('#explode').value = stage.eT;
   hint(true);
@@ -118,6 +120,7 @@ function kpiTiles(d) {
 }
 
 function showOverview() {
+  if (guides.renderCard($('#detail'))) { setSheet(true); return; } // a guide is open: its step card replaces the overview
   if (intr.renderCard($('#detail'))) { setSheet(false); return; } // an interruption is chosen: its card replaces the overview
   const d = def;
   $('#detail').innerHTML = `
@@ -401,7 +404,8 @@ new ResizeObserver(layoutInsets).observe($('#right'));
 addEventListener('orientationchange', layoutInsets);
 
 // ─────────────── boot ───────────────
-const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => { hint(false); showOverview(); } });
+const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => { if (intr.active()) guides.release(); hint(false); showOverview(); } });
+const guides = initGuides({ stage, app, $, esc, getDef: () => def, onPick: () => { if (intr.active()) intr.clear(); }, onChange: () => { hint(false); showOverview(); } });
 useRobot('phantas');
 layoutInsets();
 initJarvis({ stage, app, $ });

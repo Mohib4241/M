@@ -13,6 +13,7 @@ import { Builder } from './kit.js';
 const LAYER_START = [0, 0.18, 0.36, 0.54];
 const LAYER_SPAN = 0.46;
 // How far open the suit must be before a layer is clear of the shell.
+const ZERO3 = new THREE.Vector3();
 export const REVEAL = [0.5, 0.66, 0.84, 1.0];
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -635,6 +636,11 @@ export class Stage {
    * softly; everything else dims, so the glow stands out. The suit opens far enough to show the main
    * parts, and the camera frames them.
    */
+  /** Slide parts out of place, by robot-local offsets: { partId: [x, y, z] }. null puts them all back. */
+  setPull(map) {
+    for (const p of this.parts) { const v = map && map[p.def.id]; p.pullT = v ? new THREE.Vector3(...v) : null; }
+  }
+
   setAlert(spec, { reveal = true } = {}) {
     this._disposeAlertFx();
     for (const p of this.parts) p.alertT = 0;
@@ -834,6 +840,11 @@ export class Stage {
       const k = easeInOut(clamp((e - st) / (LAYER_SPAN - d), 0, 1));
       p.t = k;
       p.root.position.set(p.home.x + p.ex.x * k, p.home.y + p.ex.y * k, p.home.z + p.ex.z * k);
+      if (p.pullT || p.pull) { // a guide slides this part out (or back in)
+        const to = p.pullT || ZERO3; p.pull = p.pull || new THREE.Vector3();
+        p.pull.lerp(to, this.reduced ? 1 : damp(dt, 3.2));
+        if (!p.pullT && p.pull.lengthSq() < 1e-5) p.pull = null; else p.root.position.add(p.pull);
+      }
       for (const s of p.spinners) s.rotation.y += dt * (s.userData.spin || 1);
       for (const l of p.liquids) l.rotation.z = Math.sin(t * 1.3 + p.home.x) * 0.012;
     }
