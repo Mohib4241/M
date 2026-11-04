@@ -641,6 +641,39 @@ export class Stage {
     for (const p of this.parts) { const v = map && map[p.def.id]; p.pullT = v ? new THREE.Vector3(...v) : null; }
   }
 
+  /**
+   * What a guide shows beyond glowing parts: `tilt` 0..1 tips the robot back onto its rear edge so the
+   * underside faces you; `debris` 0 none, 1 a jammed strip in the brush channel, 2 the strip pulled out.
+   */
+  setGuideFx(fx) { this.gfx = { tilt: fx?.tilt || 0, debris: fx?.debris || 0, ...(this.gfx ? { tiltNow: this.gfx.tiltNow, outNow: this.gfx.outNow } : {}) }; }
+
+  _guideFx(dt, t) {
+    const g = this.gfx || (this.gfx = { tilt: 0, debris: 0 });
+    const k = this.reduced ? 1 : damp(dt, 2.6);
+    g.tiltNow = (g.tiltNow || 0) + (g.tilt - (g.tiltNow || 0)) * k;
+    // tip back about the rear edge of the base (z = -2.6 in the robot's units), so nothing sinks into the floor
+    const a = -1.0 * easeInOut(clamp(g.tiltNow, 0, 1)), zr = -2.6;
+    this.robot.rotation.x = a;
+    this.robot.position.y += zr * Math.sin(a); // pivot P = (0, 0, zr): position = P + R(-P)
+    this.robot.position.z = zr - zr * Math.cos(a);
+    // the jammed strip, made the first time it is needed on this robot
+    if (g.debris && (!this.jam || this.jam.parent !== this.robot)) {
+      const m = new THREE.MeshStandardMaterial({ color: 0xffd21a, emissive: 0xffb000, emissiveIntensity: 0.8, roughness: 0.45, depthTest: false, transparent: true });
+      this.jam = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.08, 0.42), m); // drawn over the glowing deck, so it is never lost in it
+      this.jam.rotation.set(0.25, 0.35, 0.1);
+      this.jam.renderOrder = 60;
+      this.robot.add(this.jam);
+    }
+    if (this.jam) {
+      const out = g.debris === 2 ? 1 : 0;
+      g.outNow = (g.outNow || 0) + (out - (g.outNow || 0)) * (this.reduced ? 1 : damp(dt, 2.2));
+      this.jam.visible = g.debris > 0 && g.outNow < 0.97;
+      this.jam.position.set(0.2 + g.outNow * 4.5, 0.62 - g.outNow * 0.3, 1.88 + g.outNow * 0.8); // pulled out sideways, past the open cover
+      this.jam.material.emissiveIntensity = 0.5 + 0.5 * (0.5 + 0.5 * Math.sin(t * 5));
+      this.jam.material.opacity = 1 - g.outNow; // always in the see-through pass, after the glow (renderOrder 40), so the glow never covers it
+    }
+  }
+
   setAlert(spec, { reveal = true } = {}) {
     this._disposeAlertFx();
     for (const p of this.parts) p.alertT = 0;
@@ -850,6 +883,7 @@ export class Stage {
     }
     const bob = this.look === 'studio' ? 0 : Math.sin(t * 0.9) * 0.05 * (1 - e) * (this.reduced ? 0 : 1);
     this.robot.position.y = this.baseY + bob;
+    this._guideFx(dt, t);
     this.robot.updateMatrixWorld(true);
 
     this._visuals(dt);
@@ -1051,6 +1085,13 @@ export class Stage {
       tx = w.x; ty = w.y; tz = w.z;
       const aspect = Math.max(0.3, (this.W - this.insets.left - this.insets.right) / Math.max(1, this.H - this.insets.bottom));
       dist = clamp(sel.radius * 3.5 + 5, 8.5, 22) * Math.max(1, 0.6 / aspect) * this.userZoom;
+    }
+
+    else if (this.alert && this.alertSpec?.wide) {
+      // a guide: the whole robot in view, so tipping it and sliding parts out can be followed
+      const f = this._fit();
+      tx = f.center.x; ty = f.center.y; tz = f.center.z;
+      dist = f.dist * 1.08 * this.userZoom;
     }
 
     else if (this.alert) {

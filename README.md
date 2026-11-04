@@ -115,7 +115,7 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 3. Hard refresh the page (Ctrl+Shift+R, or Cmd+Shift+R on macOS).
 4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
-Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on both robots, the counts add up), the guide tests (every step points at real parts and photos) and the touch-control test.
+Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on both robots, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
 
 ## Controls
 
@@ -156,12 +156,12 @@ To use newer data: `pip install openpyxl`, then `python3 scripts/interruptions_f
 
 ## Guides: troubleshooting and maintenance
 
-Under **Guides** in the left panel, step-by-step cards for the Phantas, worked on the 3D robot: each step makes its parts glow, opens the robot as far as it needs and slides parts out, with a photo from site where there is one. **Back** and **Next** (or the arrow keys) move through the steps.
+Under **Guides** in the left panel, step-by-step guides for the Phantas, animated on the 3D robot with no sound: one short line of text per step, written over the picture. Each step makes its parts glow, tips the robot back so the underside faces you, slides the brush out, and shows the jammed debris and its removal. A guide plays itself when opened; **Pause**, **Back** and **Next** (or the arrow keys) take over.
 
 - **Debris tray stuck** (troubleshooting): debris wedged in the channel behind the front roller brush, in front of the debris tray. Stop the robot, tip it back, open the side cover, slide the brush out, clear the channel, empty the tray, refit and test.
 - **Change the roller brush** (maintenance): the same way in, the old brush out, the bay wiped, the new brush in, and a test.
 
-The steps and photos come from a video filmed on site on 4 November 2026 (`src/data/guides.js`, photos in `src/media/guides/`). The maker's manual could not be checked when they were written, so each card says so. The CC1 Pro has no guides yet.
+The steps follow what was done on site on 4 November 2026 (`src/data/guides.js`); the site video itself is not in the page. The maker's manual could not be checked when they were written, so each card says so. The CC1 Pro has no guides yet.
 
 ## Race mode
 

@@ -23,7 +23,6 @@ const opts = {
   write: false,
   legalComments: 'none',
   logLevel: 'warning',
-  loader: { '.webp': 'dataurl' }, // the small guide photos travel inside the page
 };
 
 // The MediaPipe WebAssembly runtime (about 27 MB) is served beside the page for in-browser hand
