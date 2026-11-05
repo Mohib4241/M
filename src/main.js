@@ -2,12 +2,13 @@ import { Stage } from './stage.js';
 import { GROUPS, CONF, SOURCES } from './data/shared.js';
 import phantas from './data/phantas.js';
 import cc1pro from './data/cc1pro.js';
+import omnie from './data/omnie.js';
 import { initJarvis } from './jarvis.js';
 import { openRace, isRaceOpen } from './game/index.js';
 import { initInterruptions } from './interruption-ui.js';
 import { initGuides } from './guide-ui.js';
 
-const ROBOTS = { phantas, cc1pro };
+const ROBOTS = { phantas, cc1pro, omnie };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

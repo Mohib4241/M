@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { GUIDES, KINDS, guidesFor } from '../src/data/guides.js';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
+import omnie from '../src/data/omnie.js';
 
-const ROBOTS = { phantas, cc1pro };
+const ROBOTS = { phantas, cc1pro, omnie };
 
 test('every guide step names parts the robot has, and only the animation', () => {
   for (const g of GUIDES) {

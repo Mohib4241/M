@@ -43,4 +43,8 @@ export const SOURCES = {
   'rl-pd':     { t: 'RobotLAB: PUDU CC1 Pro', u: 'https://www.robotlab.com/store/pudu-cc1-pro-robot/' },
   'homery':    { t: 'Homery: CC1 Pro listing', u: 'https://www.homery.com/product/pudu-10110000039' },
   'anton':     { t: 'Anton Robots: CC1 Pro review', u: 'https://antonrobots.com/pudu-cc1-pro-review/' },
+  'gs-omnie-img': { t: 'Gausium: Omnie product pictures (specification page and a distributor sheet)', u: 'https://gausium.com/specs/omnie/' },
+  'gs-omnie':  { t: 'Gausium: Omnie specifications', u: 'https://gausium.com/specs/omnie/' },
+  'gs-omnie-br': { t: 'Gausium: Omnie brochure (EN, 2025-11-14)', u: 'https://gausium.com/wp-content/uploads/2024/12/EN_Brochure_OMNIE_251114.pdf' },
+  'zx-omnie':  { t: 'Zetrix: Omnie product sheet (Robotic Solutions Catalogue 2026)', u: 'https://www.zetrix.com/wp-content/uploads/2026/02/Omnie.pdf' },
 };

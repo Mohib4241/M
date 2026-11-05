@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of two commercial cleaning robots: the **Gausium Phantas** and the **PUDU CC1 Pro**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of three commercial cleaning robots: the **Gausium Phantas**, the **PUDU CC1 Pro** and the **Gausium Omnie**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -20,7 +20,7 @@ Move the robots with your hands, from your webcam. Click **Start hand control**,
 | Quick pinch | Click: select a part, press a button, set the slider |
 | Fist, then open the hand | Open the suit all the way |
 | Open hand, then a fist | Close the suit |
-| Flick an open palm sideways | Switch between the two robots |
+| Flick an open palm sideways | Switch to the next robot |
 
 The point between your thumb and index finger is the cursor, drawn as a ring over the viewer. A small picture-in-picture shows the tracked hands and the tracking rate. For best results use good front light, keep your hands 40 to 80 cm from the camera, and avoid a busy background.
 
@@ -115,7 +115,7 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 3. Hard refresh the page (Ctrl+Shift+R, or Cmd+Shift+R on macOS).
 4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
-Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on both robots, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
+Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on every robot, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
 
 ## Controls
 
@@ -146,13 +146,13 @@ The choice carries over when you switch robot or look, so you can compare the tw
 
 Notes on the figures:
 
-- The counts and alarm lengths are pooled over the whole fleet, so both robots show the same figures for the same interruption.
-- The recorded data names the alarm, not the part. Which part an alarm points to is a mapping written by hand in `src/data/interruptions.js`, by what each part does. Where a robot has no part of exactly that kind (the CC1 Pro has no anti-drop sensor, neither robot has a separate suction pipe), the nearest part is used and marked "Nearest match".
+- The counts and alarm lengths are pooled over the whole fleet, so every robot shows the same figures for the same interruption.
+- The recorded data names the alarm, not the part. Which part an alarm points to is a mapping written by hand in `src/data/interruptions.js`, by what each part does. Where a robot has no part of exactly that kind (the CC1 Pro has no anti-drop sensor, the Omnie has a debris tray rather than a dust bag, no robot has a separate suction pipe), the nearest part is used and marked "Nearest match".
 - Alarm length is the time the alarm stayed open, not necessarily downtime. A few alarms stayed open for days (the longest is about 167 hours), so the card shows the median and the longest, not an average.
 - Dates are not used.
 - Only aggregates are published: alarm code, category, wording and alarm lengths. Site names, robot serial numbers, robot models and time stamps are not in the page or the repository.
 
-To use newer data: `pip install openpyxl`, then `python3 scripts/interruptions_from_xlsx.py path/to/export.xlsx` rewrites `src/data/interruption-stats.js`, and `npm run build`. A new alarm code needs a line in `TYPES` in `src/data/interruptions.js` (the tests fail until every code has a type and every type points at real parts on both robots).
+To use newer data: `pip install openpyxl`, then `python3 scripts/interruptions_from_xlsx.py path/to/export.xlsx` rewrites `src/data/interruption-stats.js`, and `npm run build`. A new alarm code needs a line in `TYPES` in `src/data/interruptions.js` (the tests fail until every code has a type and every type points at real parts on every robot).
 
 ## Guides: troubleshooting and maintenance
 
@@ -194,9 +194,9 @@ Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of d
 
 **Camera.** A close chase camera sits above and behind the robot and looks well down the road, so the robot rides low in the frame and the bend ahead shows. It follows where the robot is going more than where it points, so in a drift the robot swings round in front of it and shows its side. It pulls back and widens as speed builds, widens and shakes slightly under a boost, and the menu screen turns slowly round the robot instead. The numbers are in `game/chasecam.js`.
 
-**Body colour.** On the robot screen, under the two robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`catalogue-paint`).
+**Body colour.** On the robot screen, under the robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`catalogue-paint`).
 
-The game is a stylised model, not the real robot. Both robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. It needs a keyboard, so it does not run on phones.
+The game is a stylised model, not the real robot. All robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. You race the next robot along (Phantas, CC1 Pro, Omnie). On phones and small windows it has buttons on screen.
 
 ## Where the data comes from
 
@@ -211,6 +211,12 @@ The shapes and where parts sit inside are a **schematic reconstruction, not CAD*
 The outside of both robots, and the two docking stations, are modelled from photographs supplied for this project (listed as a source in the app): the Phantas with its lid, lid-top LiDAR, e-stop and ring button, front pull-handle recess and label field, black body with a bumper skirt and three front windows, graphite side plates; and the CC1 Pro with its sloped slate shell, tilted touch screen, front camera pod, ultrasonic sensors and extended black base. Sizes follow the listed dimensions (Phantas footprint about 440 x 540 mm, CC1 Pro 552 x 629 mm) and the photos' proportions; the inside is still a schematic.
 
 The manufacturer sites (`gausium.com`, `www.pudurobotics.com`, `academy.pudutech.com`) and the retailer and manual hosts were blocked by the network policy of the environment this was built in, so the facts were gathered from search-result summaries of those pages rather than from reading them in full. The full source list is inside the app (right panel, Sources) and in `src/data/shared.js`. Where sources disagree (for example the CC1 Pro's 15 L vs the base CC1's 17 L tank) the panel says so.
+
+## Gausium Omnie
+
+The Omnie is shown in its roller-brush version, built from Gausium's specification page, its brochure (EN, 2025-11-14), a distributor sheet and Gausium's product pictures (`src/data/omnie.js`). Published figures: 810 x 700 x 1,070 mm, 148 kg (157 kg with disc brushes), 33 L clean and 24 L waste water, 60 Ah 24 V lithium iron phosphate battery (3 h scrubbing, 8 h sweeping or dust mopping, about 2 h to charge), dual roller brushes 406 mm wide, 780 mm with the two side brushes, a built-in debris tray, up to 1.4 m/s, and a 3D LiDAR, a 2D LiDAR, a 3D depth camera, an RGB camera, anti-collision and anti-drop sensing.
+
+The outside follows the pictures: a silver body that leans in a little towards a black collar and round top with a flat dark panel and the red emergency stop, a camera pod at the front top, a wide dark front panel, a rear handle, and a rounded black base. What sits behind the top and front panels is not stated, and which lens in the pod is the 3D LiDAR is our reading. No dock or workstation is listed with the Omnie, so none is shown, and there are no guides for it yet.
 
 ## Docking stations
 

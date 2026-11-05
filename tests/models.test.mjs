@@ -5,9 +5,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
+import omnie from '../src/data/omnie.js';
 import { GROUPS, SOURCES, CONF } from '../src/data/shared.js';
 
-const ROBOTS = { phantas, cc1pro };
+const ROBOTS = { phantas, cc1pro, omnie };
 const finite3 = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
 
 test('models: every part has an id, a known group, a layer, a build function and sources that exist', () => {
@@ -32,6 +33,7 @@ test('models: every part has an id, a known group, a layer, a build function and
 
 test('models: each robot has a docking station made of several parts, split off to the side', () => {
   for (const [rid, def] of Object.entries(ROBOTS)) {
+    if (def.noDock) { assert.ok(!def.parts.some((p) => p.group === 'dock'), `${rid}: says it has no dock but has dock parts`); continue; } // no dock is listed for it
     const dock = def.parts.filter((p) => p.group === 'dock');
     assert.ok(dock.length >= 5, `${rid}: the station has only ${dock.length} parts`);
     for (const id of ['dock-shell', 'dock-contacts', 'dock-board', 'dock-cable', 'dock-base']) {
@@ -46,7 +48,7 @@ test('models: each robot has a docking station made of several parts, split off 
   }
 });
 
-test('models: the parts the race dresses as a car are on both robots', () => {
+test('models: the parts the race dresses as a car are on every robot', () => {
   const need = [/^top-(cover|hood)$/, /^front-(cover|shell)$/, /^rear-(cover|shell)$/, /^side-(cover|shell)-[lr]$/, /^bumper$/, /^wheel-l$/, /^wheel-r$/];
   for (const [rid, def] of Object.entries(ROBOTS)) {
     for (const re of need) assert.ok(def.parts.some((p) => re.test(p.id)), `${rid}: nothing matches ${re}`);
@@ -74,6 +76,6 @@ test('the product name and the data source stay out of the page, the data and th
   for (const f of files) {
     const text = readFileSync(f, 'utf8');
     assert.ok(!/armory/i.test(text), `${f} still says the old name`);
-    assert.ok(!/\bwhiz|\bomnie/i.test(text), `${f} names another robot model`);
+    assert.ok(!/\bwhiz/i.test(text), `${f} names another robot model`); // the Omnie was added to the Catalogue on request (5 Nov 2026)
   }
 });

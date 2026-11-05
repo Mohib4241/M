@@ -247,7 +247,8 @@ export function initJarvis({ stage, app, $ }) {
       case 'explode_to': stage.setExplode(m.value); stage.emit('input'); break;
       case 'click': click(m.x, m.y); break;
       case 'swap': {
-        const next = app.dataset.robot === 'phantas' ? 'cc1pro' : 'phantas';
+        const ids = [...document.querySelectorAll('.robot-tab')].map((t) => t.dataset.robot);
+        const next = ids[(ids.indexOf(app.dataset.robot) + 1) % ids.length]; // the next robot along the tabs
         $(`.robot-tab[data-robot="${next}"]`).click();
         break;
       }

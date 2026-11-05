@@ -26,32 +26,32 @@ export const TYPES = [
   {
     id: 'estop', title: 'Emergency stop pressed', category: 'Notice', codes: [20022, 500],
     why: 'The alarm comes from the red emergency-stop switch.',
-    parts: { phantas: { main: ['e-stop'], rel: ['smart-handle'] }, cc1pro: { main: ['e-stop'] } },
+    parts: { phantas: { main: ['e-stop'], rel: ['smart-handle'] }, cc1pro: { main: ['e-stop'] }, omnie: { main: ['e-stop'], rel: ['handle'] } },
   },
   {
     id: 'bumper-hit', title: 'Bumper triggered', category: 'Notice', codes: [21001],
     why: 'The front bumper was pressed in; the robot tries to back out of it on its own.',
-    parts: { phantas: { main: ['bumper'] }, cc1pro: { main: ['bumper'], rel: ['line-sensor-f'] } },
+    parts: { phantas: { main: ['bumper'] }, cc1pro: { main: ['bumper'], rel: ['line-sensor-f'] }, omnie: { main: ['bumper'], rel: ['lidar-2d'] } },
   },
   {
     id: 'battery', title: 'Battery low', category: 'Maintenance', codes: [20021, 604],
     why: 'The battery ran low; the charge contacts are where the dock refills it.',
-    parts: { phantas: { main: ['battery'], rel: ['charge-contacts'] }, cc1pro: { main: ['battery'], rel: ['charge-contacts'] } },
+    parts: { phantas: { main: ['battery'], rel: ['charge-contacts'] }, cc1pro: { main: ['battery'], rel: ['charge-contacts'] }, omnie: { main: ['battery'], rel: ['charge-contacts'] } },
   },
   {
     id: 'waste-tank', title: 'Waste water tank full', category: 'Maintenance', codes: [20005],
     why: 'The tank that collects the dirty water is full and must be emptied before cleaning goes on.',
-    parts: { phantas: { main: ['recovery-tank'] }, cc1pro: { main: ['dirty-tank'], rel: ['drain-outlet'] } },
+    parts: { phantas: { main: ['recovery-tank'] }, cc1pro: { main: ['dirty-tank'], rel: ['drain-outlet'] }, omnie: { main: ['recovery-tank'] } },
   },
   {
     id: 'dust-bag', title: 'Dust bag full', category: 'Maintenance', codes: [605],
     why: 'The dry-debris store is full.',
-    parts: { phantas: { main: ['dust-bag'], rel: ['trash-can'] }, cc1pro: { main: ['dust-bin'], fit: 'nearest', note: 'The CC1 Pro has a dust bin, with a bag as an option.' } },
+    parts: { phantas: { main: ['dust-bag'], rel: ['trash-can'] }, cc1pro: { main: ['dust-bin'], fit: 'nearest', note: 'The CC1 Pro has a dust bin, with a bag as an option.' }, omnie: { main: ['debris-tray'], fit: 'nearest', note: 'The Omnie has a built-in debris tray; no dust bag is listed.' } },
   },
   {
     id: 'sensor-dirty', title: 'Bottom sensor dirty', category: 'Maintenance', codes: [6000],
     why: 'A floor-facing sensor is covered or dirty and needs wiping.',
-    parts: { phantas: { main: ['cliff-sensors'] }, cc1pro: { main: ['line-sensor-f', 'line-sensor-r'], fit: 'nearest', note: 'The CC1 Pro has no separate anti-drop sensor; its low single-line sensors are the closest.' } },
+    parts: { phantas: { main: ['cliff-sensors'] }, cc1pro: { main: ['line-sensor-f', 'line-sensor-r'], fit: 'nearest', note: 'The CC1 Pro has no separate anti-drop sensor; its low single-line sensors are the closest.' }, omnie: { main: ['cliff-sensors'] } },
   },
   {
     id: 'suction', title: 'Suction pipe blocked', category: 'Suction/airflow', codes: [10041],
@@ -59,6 +59,7 @@ export const TYPES = [
     parts: {
       phantas: { main: ['squeegee', 'recovery-tank'], rel: ['vacuum-motor'], fit: 'nearest', note: 'There is no separate suction-pipe part; the squeegee and the recovery tank are the two ends of it.' },
       cc1pro: { main: ['squeegee', 'dirty-tank'], rel: ['vacuum-motor'], fit: 'nearest', note: 'There is no separate suction-pipe part; the squeegee and the dirty tank are the two ends of it.' },
+      omnie: { main: ['squeegee', 'recovery-tank'], rel: ['vacuum-motor'], fit: 'nearest', note: 'There is no separate suction-pipe part; the squeegee and the waste tank are the two ends of it.' },
     },
   },
   {
@@ -67,6 +68,7 @@ export const TYPES = [
     parts: {
       phantas: { main: ['chassis', 'caster'], rel: ['bumper', 'lidar-2d', 'depth-cameras', 'cliff-sensors'] },
       cc1pro: { main: ['chassis', 'rear-casters'], rel: ['bumper', 'lidar', 'rgbd-camera', 'ultrasonic'] },
+      omnie: { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-2d', 'depth-camera', 'cliff-sensors'] },
     },
   },
   {
@@ -75,17 +77,18 @@ export const TYPES = [
     parts: {
       phantas: { main: ['lidar-2d', 'depth-cameras'], rel: ['bumper'] },
       cc1pro: { main: ['lidar', 'rgbd-camera'], rel: ['ultrasonic', 'line-sensor-f', 'bumper'] },
+      omnie: { main: ['lidar-3d', 'depth-camera'], rel: ['lidar-2d', 'bumper'] },
     },
   },
   {
     id: 'bumper-stuck', title: 'Bumper stuck', category: 'Navigation interference', codes: [602, 620],
     why: 'The front bumper is held in.',
-    parts: { phantas: { main: ['bumper'] }, cc1pro: { main: ['bumper'], rel: ['line-sensor-f'] } },
+    parts: { phantas: { main: ['bumper'] }, cc1pro: { main: ['bumper'], rel: ['line-sensor-f'] }, omnie: { main: ['bumper'] } },
   },
   {
     id: 'cliff', title: 'Cliff detected', category: 'Navigation interference', codes: [601],
     why: 'The floor-facing sensors lost the floor, like a step or a dock edge.',
-    parts: { phantas: { main: ['cliff-sensors'] }, cc1pro: { main: ['line-sensor-f', 'line-sensor-r'], fit: 'nearest', note: 'The CC1 Pro has no separate anti-drop sensor; its low single-line sensors are the closest.' } },
+    parts: { phantas: { main: ['cliff-sensors'] }, cc1pro: { main: ['line-sensor-f', 'line-sensor-r'], fit: 'nearest', note: 'The CC1 Pro has no separate anti-drop sensor; its low single-line sensors are the closest.' }, omnie: { main: ['cliff-sensors'] } },
   },
   {
     id: 'no-recover', title: 'Robot failed to recover', category: 'Navigation interference', codes: [106],
@@ -93,6 +96,7 @@ export const TYPES = [
     parts: {
       phantas: { main: ['chassis', 'caster'], rel: ['bumper', 'lidar-2d', 'depth-cameras'] },
       cc1pro: { main: ['chassis', 'rear-casters'], rel: ['bumper', 'lidar', 'rgbd-camera'] },
+      omnie: { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-2d', 'depth-camera'] },
     },
   },
   {
@@ -101,12 +105,13 @@ export const TYPES = [
     parts: {
       phantas: { main: ['lidar-2d'], rel: ['depth-cameras', 'rgb-camera'] },
       cc1pro: { main: ['lidar', 'vslam-camera'], rel: ['rgbd-camera'] },
+      omnie: { main: ['lidar-3d', 'lidar-2d'], rel: ['depth-camera', 'rgb-camera'] },
     },
   },
   {
     id: 'front-cam', title: 'Front camera error', category: 'Sensor error', codes: [6002],
     why: 'The forward-facing colour camera reports a fault.',
-    parts: { phantas: { main: ['rgb-camera'], rel: ['depth-cameras'] }, cc1pro: { main: ['front-rgb'], rel: ['rgbd-camera'] } },
+    parts: { phantas: { main: ['rgb-camera'], rel: ['depth-cameras'] }, cc1pro: { main: ['front-rgb'], rel: ['rgbd-camera'] }, omnie: { main: ['rgb-camera'], rel: ['depth-camera'] } },
   },
 ];
 

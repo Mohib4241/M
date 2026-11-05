@@ -9,7 +9,7 @@ import { Builder } from '../kit.js';
 import { applyPaint } from './livery.js';
 
 // Drive wheel radius in units, from the wheel builders in each robot's data file
-export const WHEEL_R = { phantas: 0.62, cc1pro: 0.8 };
+export const WHEEL_R = { phantas: 0.62, cc1pro: 0.8, omnie: 0.7 };
 
 const cache = new Map();
 // the parts whose position the lights and decals are placed from

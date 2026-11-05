@@ -12,6 +12,7 @@ import { TIER_RGB } from './fx.js';
 export const LIVERY = {
   phantas: { shell: 0x1b4a70, trim: 0x0c1621, accent: [0.21, 0.94, 1.0], css: '#35f0ff' },
   cc1pro: { shell: 0x6a3f22, trim: 0x15100c, accent: [1.0, 0.69, 0.18], css: '#ffb02e' },
+  omnie: { shell: 0x4b3a7a, trim: 0x100c1a, accent: [0.71, 0.61, 1.0], css: '#b49bff' },
 };
 const liveryOf = (id) => LIVERY[id] || LIVERY.phantas;
 

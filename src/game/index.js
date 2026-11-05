@@ -99,7 +99,8 @@ function onResize() {
   S?.scene?.resize(w, h);
 }
 
-const otherRobot = (id) => (id === 'phantas' ? 'cc1pro' : 'phantas');
+// the opponent is the next robot along (Phantas, CC1 Pro, Omnie, then round again)
+const otherRobot = (id) => { const ids = Object.keys(S.defs); return ids[(ids.indexOf(id) + 1) % ids.length]; };
 
 function makeRoads(seedBase) {
   const roads = [];
@@ -185,8 +186,8 @@ function paintRow() {
 function robotScreen() {
   return `<div class="g-card g-side">
     <header><span class="g-kicker">Race mode</span><h2>Choose your robot</h2>
-    <p>You race the other robot, round five random roads. Each lap is about a minute.</p></header>
-    <div class="g-robots">${robotCard('phantas')}${robotCard('cc1pro')}</div>
+    <p>You race the next robot along, round five random roads. Each lap is about a minute.</p></header>
+    <div class="g-robots">${Object.keys(S.defs).map(robotCard).join('')}</div>
     ${paintRow()}
     <p class="g-note">Keys: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust, <kbd>G</kbd> graphics, <kbd>P</kbd> frame rate. On a phone or tablet, use the buttons on screen: steer on the left, Go and Brake on the right.</p>
     <div class="g-actions"><button class="g-btn primary" data-focus data-act="to-roads">Next: choose roads →</button><button class="g-btn" data-act="exit">Back to viewer</button></div>

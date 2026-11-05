@@ -1,13 +1,14 @@
 // The interruption data: every recorded alarm belongs to one type, every type points to parts that
-// exist on both robots, and the figures add up.
+// exist on every robot, and the figures add up.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
+import omnie from '../src/data/omnie.js';
 import { STATS, SOURCE } from '../src/data/interruption-stats.js';
 import { TYPES, CATEGORIES, CATEGORY_ORDER, partsFor, typeStats, totalEvents, ranked, fmtHours, wording, typesForPart, alarmCodes } from '../src/data/interruptions.js';
 
-const ROBOTS = { phantas, cc1pro };
+const ROBOTS = { phantas, cc1pro, omnie };
 
 test('interruptions: every recorded alarm code belongs to exactly one type, and every type code was recorded', () => {
   const seen = new Map();
@@ -28,7 +29,7 @@ test('interruptions: a type has one category, and it matches the recorded data',
   for (const c of Object.values(CATEGORIES)) assert.match(c.color, /^#[0-9a-f]{6}$/);
 });
 
-test('interruptions: every type points to real parts on both robots, with at least one main part', () => {
+test('interruptions: every type points to real parts on every robot, with at least one main part', () => {
   for (const t of TYPES) {
     assert.ok(t.title && t.why, `${t.id}: title and why`);
     for (const [rid, robot] of Object.entries(ROBOTS)) {
