@@ -178,7 +178,7 @@ export function chargePads(b, { w = 1.4 } = {}) {
 /** A sweeper's disc brush: a hub with long bristle bundles splayed out and down, in three rings. */
 export function discBrush(b, { r = 1.6, hub = 0.5, n = 40, m = 'bristle', droop = 0.26 } = {}) {
   b.cyl(hub, hub * 1.06, 0.2, { m: 'dark', seg: 32 });
-  b.cyl(hub * 0.42, hub * 0.42, 0.34, { m: 'steel', at: [0, 0.2, 0], seg: 18, e: false });
+  b.cyl(hub * 0.42, hub * 0.42, 0.34, { m: 'trim', at: [0, 0.2, 0], seg: 18, e: false });
   for (let k = 0; k < 3; k++) {
     const len = (r - hub * 0.8) * (1 - k * 0.07);
     const g = new THREE.CylinderGeometry(0.016, 0.042, len, 5, 1);

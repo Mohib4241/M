@@ -1,6 +1,6 @@
 // Gausium Omnie, roller-brush version. Y up, +Z front, 1 unit = 100 mm (810 L x 700 W x 1,070 H mm).
 // Numbers come from Gausium's Omnie specification page and brochure (EN, 2025-11-14) and a distributor
-// sheet. The outside follows Gausium's product pictures: a tall body whose silver front tapers towards a
+// sheet. The outside is measured from Gausium's front view (src/data/shapes/omnie.js) and follows its pictures: a tall body whose silver front tapers towards a
 // round black top, a dark rear, a camera pod and a dome at the front top, a rear handle, and a wide black
 // base with the squeegee behind. Shapes and internal positions are a schematic reconstruction.
 import * as THREE from 'three';

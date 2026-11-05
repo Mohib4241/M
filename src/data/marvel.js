@@ -1,6 +1,6 @@
 // Gausium Marvel. Y up, +Z front, 1 unit = 100 mm (1,108 L x 699 W x 1,168 H mm).
-// Numbers come from Gausium's Marvel specification page and brochure (EN, 2026-09-22). The outside
-// follows Gausium's product pictures (front, side and top views): a tall tower with rounded silver sides
+// Numbers come from Gausium's Marvel specification page and brochure (EN, 2026-09-22). The outside is
+// measured from Gausium's front view (src/data/shapes/marvel.js) and follows its side and top pictures: a tall tower with rounded silver sides
 // that slant back to a black rear body, a black carbon-weave front panel with the maker's mark, a black
 // visor at the top with a sensor dome and two white light strips, a flat lid with the emergency stop, a
 // push handle at the rear, a drain hose with a yellow cap on the left, a wide silver base, two large side

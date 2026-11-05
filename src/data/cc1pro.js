@@ -1,12 +1,39 @@
 // PUDU CC1 Pro. Y up, +Z front, 1 unit = 100 mm.
 // Part names and numbers come from PUDU's operation guide, the CC1 version-comparison sheet
-// and retailer spec listings. The outside follows a photograph of the unit; shapes and internal positions
-// are a schematic reconstruction.
+// and retailer spec listings. The outside is measured from PUDU's front picture (src/data/shapes/cc1pro.js)
+// and follows PUDU's 3/4 pictures and a photograph of the unit; internal positions are a schematic
+// reconstruction.
 import * as THREE from 'three';
 import * as L from '../lib.js';
-import { screenTexture } from '../kit.js';
+import { puduFaceTexture } from '../kit.js';
+import { view, loftFrom, outline, box, pair } from '../measured.js';
+import shape from './shapes/cc1pro.js';
 
 const PI = Math.PI;
+
+// ── The measured body ──
+// Widths at every height come from PUDU's front picture of the CC1 Pro (src/data/shapes/cc1pro.js): a
+// plinth 568 mm wide, a dark gap, and a body that narrows from 505 mm at its foot to 441 mm under the lid.
+// In plan the body is a rounded box (from the photograph of the unit and PUDU's 3/4 pictures), the plinth
+// longer at the front.
+const F = view(shape, 'front');
+const BASE = 1.48, GAP = 1.74, LID = 6.5; // the plinth's top, the body's foot, the lid's lower edge
+const body = loftFrom(F, {
+  from: 30,
+  extra: [[6.74, 2.0], [6.79, 1.8]],
+  zF: (y) => (y < BASE ? 3.14 : y < GAP ? 2.85 : 2.65),
+  zB: (y) => (y < BASE ? -3.15 : y < GAP ? -2.9 : -2.95),
+  rF: (y) => (y < BASE ? 1.05 : y < GAP ? 0.9 : 0.7),
+  rB: (y) => (y < BASE ? 0.9 : y < GAP ? 0.8 : 0.6),
+});
+const TOP = body.y1;
+const FRONT = 0.7;
+const SKIN = { thick: 0.1 };
+const M = (n) => box(F, n), P2 = (a, b2) => pair(F, a, b2);
+const tFront = (y) => body.tAtX(y, FRONT * body.sec(y).hw);
+// the side plate's outline seen from the side (z towards the front, y up): its front edge slopes back
+// towards the bottom, as in PUDU's pictures
+const PLATE = [[1.1, 6.35], [-2.75, 6.35], [-2.75, 1.95], [-0.45, 1.95], [-0.45, 3.4]];
 
 export default {
   id: 'cc1pro',
@@ -43,103 +70,109 @@ export default {
     'The base CC1 sheet lists a 17 L waste-water tank; CC1 Pro retailers list 15 L.',
     'RobotLAB quotes up to 8 h runtime, while other listings give 5 h scrubbing and 9 h silent mopping.',
     'One retailer lists 17,000 Pa suction. Battery voltage is not given in the sources reached.',
-    'The outside follows a photograph of the unit: a tall boxy body on a wider black base, a big angled screen at the front top, a camera pod and a row of ultrasonic sensors below it. The charging station is shown behind the robot; it is listed at 390 × 390 × 165 mm and 5.5 kg and its shape here is schematic.',
+    'The outside is measured from PUDU\'s front picture (the white and lime colour; the unit photographed for this project is dark slate, shown here): a body that narrows towards the lid on a wider plinth, the face screen at the front top, a camera pod and pairs of ultrasonic sensors. The charging station is shown behind the robot; it is listed at 390 × 390 × 165 mm and 5.5 kg and its shape here is schematic.',
   ],
-  sources: ['photos', 'pd-guide', 'pd-cmp', 'pd-site', 'pbtech', 'hh', 'rl-pd', 'homery', 'anton'],
+  sources: ['pd-img', 'photos', 'pd-guide', 'pd-cmp', 'pd-site', 'pbtech', 'hh', 'rl-pd', 'homery', 'anton'],
   water: ['clean-tank:out', 'pump:a', 'pump:b', 'roller-chamber:nozzle', 'squeegee:in', 'dirty-tank:in'],
 
   parts: [
     // ───────────── Shell & covers ─────────────
     {
       id: 'top-hood', name: 'Top hood', group: 'shell', layer: 0, delay: 0,
-      home: [0, 6.375, -0.15], ex: [0, 4.3, 0], tag: 'Roof', conf: 'named', src: ['photos', 'pd-guide'],
-      desc: 'The upper lid. It carries the emergency stop and the roof camera dome and lifts away first, exposing both tanks.',
+      home: [0, 0, 0], ex: [0, 4.0, 0], tag: 'Roof', conf: 'named', src: ['photos', 'pd-guide', 'pd-img'],
+      desc: 'The upper lid, a little narrower than the body below it. It carries the emergency stop and the roof camera dome and lifts away first, exposing both tanks.',
       specs: [['Overall height', '695 mm']],
       build(b) {
-        b.panel(5.3, 5.8, 0.25, { m: 'shell', r: 0.9, bevel: 0.08, rot: [-PI / 2, 0, 0] });
-        b.panel(5.1, 5.6, 0.1, { m: 'dark', r: 0.8, bevel: 0.02, rot: [-PI / 2, 0, 0], at: [0, -0.17, 0], e: false });
+        b.skin(body, body.rowsBand(LID, TOP - 0.004, 0, 1), { m: 'shellDk', ...SKIN, cols: 72 });
+        b.profile(body.outline(TOP, 72, 0.02), 0.06, { axis: 'y', m: 'shellDk', at: [0, TOP + 0.02, 0], bevel: 0.02 });
+        b.box(3.6, 0.03, 0.03, { m: 'trim', at: [0, TOP + 0.06, 0.4], e: false }); // the seam across the lid
       },
     },
     {
       id: 'front-shell', name: 'Front panel', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 4.05, 2.47], ex: [0, 1.0, 4.8], tag: 'Sensor face', conf: 'named', src: ['photos', 'pd-cmp'],
-      desc: 'The slate front panel. Under the screen it carries a small port plate and an upright camera pod; a row of ultrasonic sensors runs along its foot.',
+      home: [0, 0, 0], ex: [0, 0.6, 4.0], tag: 'Sensor face', conf: 'named', src: ['photos', 'pd-cmp', 'pd-img'],
+      desc: 'The front of the body, under the face screen. Two small sensors sit at the screen\'s lower corners with a camera between them; the upright camera pod with the maker\'s mark is in the middle, and the ultrasonic sensors sit in pairs at the lower corners. All placed as in PUDU\'s front picture.',
       specs: [['Behind it', 'RGBD · front RGB · ultrasonic']],
       build(b) {
-        b.panel(4.1, 4.4, 0.36, { m: 'shell', r: 0.4, bevel: 0.1 });
-        b.panel(0.95, 2.0, 0.1, { m: 'trim', r: 0.47, bevel: 0.02, at: [0.9, -1.15, 0.2], e: false }); // the camera pod
-        b.cyl(0.2, 0.2, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0.9, -1.0, 0.28], seg: 24, e: false });
-        b.cyl(0.14, 0.14, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0.9, -1.55, 0.28], seg: 24, e: false });
-        b.box(0.9, 0.26, 0.05, { m: 'trim', r: 0.05, at: [-0.6, 0.45, 0.19], e: false }); // port plate under the screen
+        b.skin(body, body.rowsFn(GAP, LID, (y) => [-tFront(y), tFront(y)]), { m: 'shell', ...SKIN });
+        for (const n of ['ear_r', 'ear_l']) { const e = M(n); b.on(body.place(e.cy, { x: e.cx, off: 0.02 }), () => { b.cyl(e.w / 2, e.w / 2, 0.05, { m: 'trim', rot: [PI / 2, 0, 0], seg: 18 }); b.cyl(e.w / 4, e.w / 4, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], seg: 14, e: false }); }); }
+        // the camera pod: a dark pill with the maker's mark
+        b.skin(body, body.rowsFront(outline(F, 'pod', { mirror: true })), { m: { k: 'shellDk', id: 'pod', color: 0x0b0c0e }, ...SKIN, off: 0.06 });
+        const pod = box(F, 'pod');
+        b.on(body.place(pod.y1 - 0.35, { x: 0, off: 0.12 }), () => { b.box(0.16, 0.2, 0.02, { m: 'silver', at: [-0.05, 0, 0], e: false }); b.box(0.06, 0.2, 0.02, { m: 'silver', at: [0.06, 0, 0], e: false }); });
       },
     },
     {
       id: 'rear-shell', name: 'Rear shell', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 4.05, -2.77], ex: [0, 1.0, -4.8], tag: 'Rear door', conf: 'inferred', src: ['photos', 'pd-guide'],
+      home: [0, 0, 0], ex: [0, 0.6, -4.0], tag: 'Rear door', conf: 'inferred', src: ['photos', 'pd-guide'],
       desc: 'Rear panel with a window for the AI camera, exhaust vents, and the cut-out where the drain hose leaves.',
       specs: [['Window for', 'Rear AI camera']],
       build(b) {
-        b.panel(4.1, 4.4, 0.36, { m: 'shell', r: 0.4, bevel: 0.1 });
-        b.box(1.5, 0.7, 0.06, { m: 'glass', at: [0, 0.6, -0.2], r: 0.04, e: false });
-        for (let i = 0; i < 8; i++) b.box(2.2, 0.06, 0.04, { m: 'dark', at: [0, -0.5 - i * 0.14, -0.2], e: false });
+        b.skin(body, body.rowsFn(GAP, LID, () => [0.42, 0.58]), { m: 'shell', ...SKIN });
+        b.on(body.place(4.65, { t: 0.5, off: 0.01 }), () => b.box(1.5, 0.7, 0.05, { m: 'glass', r: 0.04, e: false }));
+        for (let i = 0; i < 8; i++) b.on(body.place(3.55 - i * 0.14, { t: 0.5, off: 0.01 }), () => b.box(2.2, 0.06, 0.03, { m: 'dark', e: false }));
       },
     },
-    ...[-1, 1].map((s) => ({
-      id: s < 0 ? 'side-shell-l' : 'side-shell-r', name: s < 0 ? 'Right side shell' : 'Left side shell',
+    ...[-1, 1].map((sd) => ({
+      id: sd < 0 ? 'side-shell-l' : 'side-shell-r', name: sd < 0 ? 'Right side shell' : 'Left side shell',
       group: 'shell', layer: 0, delay: 0.06,
-      home: [s * 2.37, 4.05, -0.15], ex: [s * 4.8, 0.9, 0], tag: 'Side panel', conf: 'named', src: ['photos', 'pd-guide'],
-      desc: 'Side panel that closes the cabinet, with the rounded corners. A large lighter plate with the maker\'s mark covers most of it. It comes off outward to reach the tanks, battery and pump.',
+      home: [0, 0, 0], ex: [sd * 4.2, 0.6, 0], tag: 'Side panel', conf: 'named', src: ['photos', 'pd-guide', 'pd-img'],
+      desc: 'A side of the body, from the front corner round to the rear corner. A large plate covers the rear of it, its front edge sloping back towards the bottom as in PUDU\'s pictures (lime on the white robot, a lighter grey on the unit photographed), with the maker\'s mark at its top.',
       specs: [['Width', '552 mm overall']],
       build(b) {
-        b.panel(4.6, 4.4, 0.36, { m: 'shell', r: 0.4, bevel: 0.1, rot: [0, PI / 2, 0] });
-        for (const z of [-2.3, 2.3]) b.cyl(0.5, 0.5, 4.4, { m: 'shell', at: [-s * 0.32, 0, z], seg: 28, e: false }); // the rounded corners
-        b.panel(4.0, 3.5, 0.06, { m: 'graphite', r: 0.5, bevel: 0.02, rot: [0, PI / 2, 0], at: [s * 0.2, 0.15, -0.1], e: false });
-        b.box(0.05, 0.3, 1.2, { m: 'silver', r: 0.03, at: [s * 0.24, 1.2, -1.2], e: false }); // the maker's mark
-        b.box(0.05, 0.28, 0.32, { m: 'yellow', r: 0.03, at: [s * 0.24, -1.45, -1.9], e: false }); // warning label
+        b.skin(body, body.rowsFn(GAP, LID, (y) => (sd > 0 ? [tFront(y), 0.42] : [0.58, 1 - tFront(y)])), { m: 'shell', ...SKIN });
+        b.skin(body, body.rowsSide(PLATE, sd), { m: 'graphite', thick: 0.05, off: 0.03 });
+        b.on(body.place(5.9, { z: -0.6, side: sd, off: 0.07 }), () => b.box(1.0, 0.24, 0.02, { m: 'silver', e: false })); // the maker's mark
+        b.on(body.place(2.3, { z: -2.2, side: sd, off: 0.07 }), () => b.box(0.3, 0.28, 0.02, { m: 'yellow', e: false })); // a warning label
+        // a pair of ultrasonic sensors low on the side, near the front
+        for (const dz of [-0.17, 0.17]) b.on(body.place(2.35, { z: 1.4 + dz, side: sd, off: 0.02 }), () => { b.cyl(0.11, 0.11, 0.06, { m: 'trim', rot: [PI / 2, 0, 0], seg: 18 }); b.cyl(0.07, 0.07, 0.07, { m: 'lens', rot: [PI / 2, 0, 0], seg: 14, e: false }); });
       },
     })),
     {
       id: 'bumper', name: 'Base and bumper', group: 'shell', layer: 0, delay: 0.1,
-      home: [0, 1.0, 0], ex: [0, -0.4, 6.3], tag: 'Soft edge', conf: 'named', src: ['photos', 'pd-cmp'],
-      desc: 'The wide black base. It runs round the whole robot, juts out at the front with a rounded lip, and houses the low front sensors. A dark gap separates it from the body above.',
+      home: [0, 0, 0], ex: [0, -0.4, 4.6], tag: 'Soft edge', conf: 'named', src: ['photos', 'pd-cmp', 'pd-img'],
+      desc: 'The wide plinth under the body (568 mm in PUDU\'s front picture), jutting out at the front with a rounded lip and a light slot, and the dark gap between it and the body.',
       specs: [['Min. passage', '70 cm']],
       build(b) {
-        b.panel(5.52, 6.29, 1.7, { m: 'shellDk', r: 0.95, bevel: 0.25, rot: [-PI / 2, 0, 0] });
-        b.box(1.3, 0.16, 0.07, { m: 'glass', r: 0.05, at: [0, 0.0, 3.14], e: false }); // the low sensor slot
-        b.panel(5.1, 5.7, 0.14, { m: 'dark', r: 0.8, bevel: 0.02, rot: [-PI / 2, 0, 0], at: [0, 0.85, -0.12], e: false });
+        b.skin(body, body.rowsFn(body.y0, BASE, () => [0, 1]), { m: 'shellDk', ...SKIN, cols: 72 });
+        b.skin(body, body.rowsFn(BASE, GAP, () => [0, 1]), { m: 'rubber', ...SKIN, cols: 72, off: -0.12 });
+        b.profile(body.outline(BASE - 0.01, 72, 0.02), 0.04, { axis: 'y', m: 'shellDk', at: [0, BASE - 0.01, 0], bevel: 0.015, e: false });
+        const sl = M('slot');
+        b.on(body.place(sl.cy, { x: sl.cx, off: 0.01 }), () => b.box(sl.w, sl.h, 0.04, { m: 'graphite', r: sl.h / 2.2, e: false }));
       },
     },
 
     // ───────────── Controls ─────────────
     {
       id: 'display', name: '10.1″ touchscreen', group: 'ui', layer: 0, delay: 0.05,
-      home: [0, 5.2, 2.9], rot0: [-0.3, 0, 0], ex: [0, 5.6, 2.6], tag: '10.1″', conf: 'confirmed', src: ['photos', 'pbtech', 'hh'],
-      desc: 'The big screen on the front top, tilted back and held on two small hooks. Staff choose a map, a zone and a cleaning mode here and watch progress. Its size and tilt are schematic.',
+      home: [0, (box(F, 'screen').y0 + box(F, 'screen').y1) / 2, 2.95], rot0: [-0.33, 0, 0], ex: [0, 4.0, 2.6], tag: '10.1″', conf: 'confirmed', src: ['photos', 'pbtech', 'hh'],
+      desc: 'The big screen on the front top, tilted back and standing out from the body, 357 mm wide in PUDU\'s front picture. While it works it shows PUDU\'s two-eyed face (drawn here); staff also choose a map, a zone and a cleaning mode on it and watch progress.',
       specs: [['Screen', '10.1-inch LCD'], ['Speed setting', '0.2–1.2 m/s']],
       build(b) {
-        b.box(3.7, 2.35, 0.7, { m: 'trim', r: 0.25 });
-        const tex = screenTexture('#ffb347');
-        const scr = b.box(3.25, 1.9, 0.03, { m: 'screen', at: [0, 0, 0.36], e: false });
+        const sc = box(F, 'screen'), w = sc.w, h = sc.h / Math.cos(0.33);
+        b.box(w, h, 0.45, { m: 'trim', r: 0.22 });
+        const tex = puduFaceTexture();
+        const scr = b.box(w - 0.3, h - 0.3, 0.03, { m: 'screen', at: [0, 0, 0.23], e: false });
         scr.material.map = tex;
         scr.material.emissiveMap = tex;
         scr.material.emissive = new THREE.Color(0xffffff);
         scr.material.emissiveIntensity = 0.9;
         b.records.find((r) => r.mat === scr.material).emissive.set(0xffffff);
-        for (const x of [-1.2, 1.2]) b.box(0.3, 0.3, 0.25, { m: 'steel', r: 0.05, at: [x, -1.25, -0.2], e: false });
+
       },
     },
     {
       id: 'e-stop', name: 'Emergency stop switch', group: 'ui', layer: 0, delay: 0.1,
-      home: [-1.6, 6.5, -2.1], ex: [-1.6, 5.0, -0.5], tag: 'E-stop', conf: 'named', src: ['photos', 'pd-guide'],
+      home: [-1.6, TOP + 0.03, -2.0], ex: [-1.6, 4.4, -0.5], tag: 'E-stop', conf: 'named', src: ['photos', 'pd-guide'],
       desc: 'The big red switch on the lid, at the rear corner. It stops everything at once. It is listed in the operation guide’s appearance table.',
       specs: [['Action', 'Cuts drive + brush power']],
-      build(b) { L.eStop(b, { r: 0.28 }); },
+      build(b) { b.cyl(0.24, 0.26, 0.05, { m: 'yellow', at: [0, 0.025, 0], seg: 28 }); b.cyl(0.17, 0.17, 0.08, { m: 'red', at: [0, 0.09, 0], seg: 28 }); b.sph(0.17, { m: 'red', cap: PI / 2, at: [0, 0.13, 0], seg: 24 }).scale.set(1, 0.4, 1); },
     },
 
     // ───────────── Cleaning head ─────────────
     {
       id: 'roller-chamber', name: 'Roller brush chamber', group: 'clean', layer: 3, delay: 0,
-      home: [0, 1.55, 2.1], ex: [0, -1.0, 2.4], tag: 'Hood', conf: 'named', src: ['pd-guide'],
+      home: [0, 1.0, 1.85], ex: [0, -1.0, 2.4], tag: 'Hood', conf: 'named', src: ['pd-guide'],
       desc: 'The hood around the roller. The manual has a cleaning step just for it, because lint and hair build up inside.',
       specs: [['Manual section', 'Cleaning the roller brush chamber']],
       anchors: { nozzle: [0, 0.4, -0.2] },
@@ -175,10 +208,10 @@ export default {
     },
     {
       id: 'side-brush', name: 'Side brush', group: 'clean', layer: 3, delay: 0.1,
-      home: [-2.55, 0.42, 2.75], ex: [-4.4, -1.5, 3.2], tag: 'Edges', conf: 'confirmed', src: ['pd-guide', 'pbtech'],
+      home: [-2.3, 0.3, 2.75], ex: [-4.4, -1.5, 3.2], tag: 'Edges', conf: 'confirmed', src: ['pd-guide', 'pbtech'],
       desc: 'Spinning brush at the front corner that pulls debris from edges toward the roller. It adds to the 500 mm cleaning width.',
       specs: [['Cleaning width with brush', '500 mm']],
-      build(b) { L.sideBrush(b, { r: 0.9 }); },
+      build(b) { L.discBrush(b, { r: 1.0, hub: 0.32, n: 30, droop: 0.38 }); },
     },
     {
       id: 'squeegee', name: 'Squeegee', group: 'clean', layer: 3, delay: 0.1,
@@ -300,34 +333,34 @@ export default {
     // ───────────── Sensing ─────────────
     {
       id: 'lidar', name: 'LiDAR', group: 'sense', layer: 1, delay: 0,
-      home: [0, 0.95, 2.95], ex: [0, -0.3, 5.4], tag: 'Laser scan', conf: 'confirmed', src: ['pd-cmp', 'rl-pd'],
+      home: [0, 0.95, 2.55], ex: [0, -0.3, 4.6], tag: 'Laser scan', conf: 'confirmed', src: ['pd-cmp', 'rl-pd'],
       desc: 'A spinning laser that measures distance to walls and obstacles all the way round, looking out through the slot in the base. With the roof camera it forms PUDU’s LiDAR + VSLAM positioning. Its exact place is not shown in the sources reached.',
       specs: [['Type', 'LiDAR (comparison sheet)']],
       build(b) { L.lidar(b, { r: 0.4, h: 0.45 }); },
     },
     {
       id: 'rgbd-camera', name: 'RGBD camera', group: 'sense', layer: 1, delay: 0.04,
-      home: [0.9, 3.05, 2.4], ex: [0, 3.6, 5.6], tag: 'Depth + colour', conf: 'confirmed', src: ['pd-cmp'],
-      desc: 'Camera that returns colour and distance for every pixel, so the robot sees the shape of tables, chairs and people above the LiDAR plane. It looks out of the upper window of the camera pod.',
+      home: [M('cam').cx, M('cam').cy, 2.7], ex: [0, 2.6, 4.2], tag: 'Depth + colour', conf: 'confirmed', src: ['pd-cmp'],
+      desc: 'Camera that returns colour and distance for every pixel, so the robot sees the shape of tables, chairs and people above the LiDAR plane. It is shown in the small window between the two sensors under the screen; that it sits there is our reading of PUDU\'s front picture.',
       specs: [['Type', 'RGBD camera (comparison sheet)']],
-      build(b) { L.camera(b, { w: 0.6, h: 0.5, d: 0.3, lens: 0.16 }); },
+      build(b) { const c = M('cam'); b.box(c.w * 1.4, c.h, 0.08, { m: 'trim', r: 0.04 }); b.cyl(c.w * 0.3, c.w * 0.3, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0, 0, 0.05], seg: 16, e: false }); },
     },
     {
       id: 'front-rgb', name: 'Front RGB camera', group: 'sense', layer: 1, delay: 0.06,
-      home: [0.9, 2.5, 2.4], ex: [2.4, 4.4, 4.6], tag: 'Vision', conf: 'confirmed', src: ['pd-cmp'],
-      desc: 'Colour camera facing forward for recognising what is ahead and for remote viewing. It looks out of the lower window of the camera pod.',
+      home: [M('lens').cx, M('lens').cy, 2.79], ex: [0, 1.6, 4.6], tag: 'Vision', conf: 'confirmed', src: ['pd-cmp'],
+      desc: 'Colour camera facing forward for recognising what is ahead and for remote viewing. It looks out of the lens in the camera pod.',
       specs: [['Type', 'RGB camera (comparison sheet)']],
-      build(b) { L.camera(b, { w: 0.4, h: 0.3, d: 0.26, lens: 0.1 }); },
+      build(b) { const l = M('lens'); b.cyl(l.w / 2, l.w / 2, 0.06, { m: 'graphite', rot: [PI / 2, 0, 0], seg: 20 }); b.cyl(l.w * 0.3, l.w * 0.3, 0.08, { m: 'lens', rot: [PI / 2, 0, 0], seg: 18, e: false }); },
     },
     {
       id: 'vslam-camera', name: 'VSLAM fisheye camera', group: 'sense', layer: 0, delay: 0.1,
-      home: [0.3, 6.5, -1.4], ex: [0.3, 5.4, -0.2], tag: 'Top view', conf: 'confirmed', src: ['photos', 'pd-cmp', 'pd-guide'],
+      home: [0, TOP + 0.04, 0.6], ex: [0, 4.6, 0.2], tag: 'Top view', conf: 'confirmed', src: ['photos', 'pd-cmp', 'pd-guide'],
       desc: 'A wide fisheye camera in the round dome on the lid. It watches walls and ceiling to work out where the robot is, even in long plain corridors. No QR codes or beacons needed.',
       specs: [['Navigation', 'LiDAR + visual positioning (VSLAM+)'], ['Markers', 'None needed']],
       build(b) {
-        b.cyl(0.55, 0.6, 0.16, { m: 'dark', seg: 32 });
-        b.sph(0.45, { m: 'lens', at: [0, 0.08, 0], cap: PI / 2, seg: 28 });
-        b.tor(0.5, 0.03, { m: 'trim', rot: [PI / 2, 0, 0], at: [0, 0.09, 0], seg: 32, e: false });
+        const d = M('dome');
+        b.cyl(d.w * 0.9, d.w, 0.08, { m: 'dark', seg: 32 });
+        b.sph(d.w * 0.55, { m: 'lens', at: [0, 0.04, 0], cap: PI / 2, seg: 28 });
       },
     },
     {
@@ -359,14 +392,14 @@ export default {
     },
     {
       id: 'ultrasonic', name: 'Ultrasonic sensors', group: 'sense', layer: 1, delay: 0.14,
-      home: [0, 2.15, 2.62], ex: [0, 1.4, 5.4], tag: 'Echo', conf: 'confirmed', src: ['photos', 'pd-cmp'],
-      desc: 'Sound-wave rangefinders in pairs along the foot of the front panel. They catch glass walls and mirrors that lasers and cameras can look straight through.',
+      home: [0, P2('sonar_r1', 'sonar_l2').cy, 2.66], ex: [0, 1.0, 4.4], tag: 'Echo', conf: 'confirmed', src: ['photos', 'pd-cmp'],
+      desc: 'Sound-wave rangefinders in pairs at the lower corners of the front panel (where PUDU\'s front picture shows them), with more pairs low on the sides. They catch glass walls and mirrors that lasers and cameras can look straight through.',
       specs: [['Type', 'Ultrasonic sensor (comparison sheet)']],
       build(b) {
-        for (const x of [-2.05, -0.85, 0.85, 2.05]) for (const dx of [-0.2, 0.2]) b.at([x + dx, 0, 0], () => {
-          b.cyl(0.16, 0.16, 0.12, { m: 'dark', rot: [PI / 2, 0, 0], seg: 20 });
-          b.cyl(0.11, 0.11, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0, 0, 0.08], seg: 20 });
-        });
+        for (const n of ['sonar_r1', 'sonar_r2', 'sonar_l1', 'sonar_l2']) {
+          const sn = M(n);
+          b.at([sn.cx, 0, 0], () => { b.cyl(sn.w / 2, sn.w / 2, 0.08, { m: 'trim', rot: [PI / 2, 0, 0], seg: 20 }); b.cyl(sn.w * 0.32, sn.w * 0.32, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0, 0, 0.05], seg: 18, e: false }); });
+        }
       },
     },
 

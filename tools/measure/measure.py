@@ -200,7 +200,15 @@ def trace(r, fr, eps_mm):
 
 def measure_view(name, view, debug=None, tag=''):
     rgba = load(view['src'])
-    fg = cutout(rgba, view.get('tol', 38))
+    if 'fg' in view:  # a dark robot on a busy background: everything darker than 'thr' inside 'box'
+        x0, y0, x1, y1 = view['fg']['box']
+        m = (lum(rgba[..., :3].astype(np.float32)) < view['fg']['thr']).astype(np.uint8)
+        b = np.zeros_like(m); b[y0:y1, x0:x1] = 1; m &= b
+        m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+        n, lab, st, _ = cv2.connectedComponentsWithStats(m, 8)
+        fg = (lab == 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))).astype(np.uint8) if n > 1 else m
+    else:
+        fg = cutout(rgba, view.get('tol', 38))
     for x0, y0, x1, y1 in view.get('exclude', []):
         fg[y0:y1, x0:x1] = 0
     fg = fill_holes(fg) if view.get('fill', True) else fg

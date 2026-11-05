@@ -1,7 +1,7 @@
 // Gausium Phantas (Gaussian Robotics). Y up, +Z front, 1 unit = 100 mm.
 // Part names and numbers come from published spec sheets, manuals and parts catalogs.
-// The outside follows photographs of a unit and its dock; shapes and internal positions are a schematic
-// reconstruction, not CAD.
+// The outside is measured from Gausium's front view (src/data/shapes/phantas.js) and follows photographs
+// of a unit and its dock; internal positions are a schematic reconstruction, not CAD.
 import * as THREE from 'three';
 import * as L from '../lib.js';
 import { eyesTexture, carbonTex } from '../kit.js';
@@ -67,7 +67,7 @@ export default {
     'An optional dock handles charging, water refill, wastewater drainage and component rinsing.',
     'TASKI (Diversey) lists the dirty-water tank at 11 L; Gausium lists 10.5 L.',
   ],
-  sources: ['photos', 'gs-spec', 'taski', 'gs-manual', 'softbank', 'okm', 'gs-dock', 'gs-news', 'gs-nz', 'anton-gs', 'sonny', 'award', 'rl-ph', 'leo'],
+  sources: ['gs-ph-img', 'photos', 'gs-spec', 'taski', 'gs-manual', 'softbank', 'okm', 'gs-dock', 'gs-news', 'gs-nz', 'anton-gs', 'sonny', 'award', 'rl-ph', 'leo'],
   water: ['clean-tank:out', 'pump:a', 'pump:b', 'brush-deck:nozzle', 'squeegee:in', 'recovery-tank:in'],
 
   parts: [

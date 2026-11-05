@@ -11,22 +11,59 @@
 import * as THREE from 'three';
 import * as L from '../lib.js';
 import { labelTex, hazardTex } from '../kit.js';
+import { view, box, pair, halfWidths } from '../measured.js';
+import { Loft, line } from '../loft.js';
+import shapeMt1 from './shapes/mt1.js';
+import shapeMax from './shapes/mt1max.js';
 
 const PI = Math.PI;
 
-// The body, shared by both: the hood's front outline, the side profile with the wheel arch, the deck plan.
-const HOOD = [[-2.85, 1.42, 0.25], [2.85, 1.42, 0.25], [2.75, 3.15, 0.7], [2.15, 4.1, 0.95], [-2.15, 4.1, 0.95], [-2.75, 3.15, 0.7]];
+// ── Measured from PUDU's pictures (src/data/shapes/mt1.js and mt1max.js) ──
+// Each robot's front picture gives the lip (its height and width) and the hood's outline, height by
+// height; the MT1's top view gives the plan: a front that rounds in, a body about 540 mm wide and the
+// handle frame round the rear. The side profile follows the side pictures.
 const WHEEL = { z: -1.7, y: 1.18, r: 1.18 };
-const SIDE = [[-4.05, 0.85, 0.15], [-3.12, 0.85, 0], [-3.12, 1.7, 0.55], [-2.5, 2.58, 0.6], [-0.9, 2.58, 0.6], [-0.28, 1.7, 0.55], [-0.28, 0.85, 0],
-  [1.85, 0.85, 0.08], [1.85, 4.05, 0.08], [-3.7, 4.05, 0.3], [-4.05, 3.6, 0.35]];
-const DECK = [[-2.85, -4.15, 0.75], [2.85, -4.15, 0.75], [2.85, 1.95, 0.2], [-2.85, 1.95, 0.2]];
-const LIP = [[-3.0, 1.0, 0.1], [3.0, 1.0, 0.1], [3.0, 3.45, 0.8], [2.55, 4.2, 0.55], [-2.55, 4.2, 0.55], [-3.0, 3.45, 0.8]];
+// the lip in plan: its front corners round in as the top view shows
+const LIP = [[-3.0, 1.0, 0.1], [3.0, 1.0, 0.1], [3.0, 3.3, 0.8], [2.6, 4.0, 0.5], [1.7, 4.2, 0.4], [-1.7, 4.2, 0.4], [-2.6, 4.0, 0.5], [-3.0, 3.3, 0.8]];
+
+/** The measured front of one robot: the lip, the hood outline and where the front details are. */
+function front(max) {
+  const F = view(max ? shapeMax : shapeMt1, 'front');
+  const lip = box(F, 'lip');
+  const top = max ? 4.15 : 4.55; // the top of the hood (higher rows show the deck behind it)
+  // the hood starts a little above the lip (the first rows still show the lip's top, seen from above)
+  const rows = halfWidths(F).filter(([y]) => y >= lip.y1 + (max ? 0.32 : 0.06) && y <= top - 0.08);
+  // a moving average over five rows takes out pixel noise
+  const sm = rows.map(([y], i) => { let a = 0, n = 0; for (let j = Math.max(0, i - 2); j <= Math.min(rows.length - 1, i + 2); j++) { a += rows[j][1]; n++; } return [y, a / n]; });
+  const last = sm[sm.length - 1][1];
+  // the body behind the hood is no wider than the outline above the lip (the median of its half-widths)
+  const hws = sm.map((r) => r[1]).sort((a, b) => a - b);
+  // the hood as a measured loft: the widths from the front picture, a nose that curves back into the
+  // deck (PUDU's side pictures) and front corners rounded as in the top view
+  const ys = [lip.y1 - 0.02, ...sm.map((r) => r[0]), top - 0.03, top];
+  const hws2 = [sm[0][1], ...sm.map((r) => r[1]), last * 0.97, last * 0.86];
+  const loft = new Loft({
+    y: ys, hw: hws2,
+    zF: line([[lip.y1, 3.98], [top - 1.4, 3.98], [top - 0.9, 3.88], [top - 0.5, 3.66], [top - 0.18, 3.3], [top, 2.8]]),
+    zB: 1.7,
+    rF: line([[lip.y1, 0.95], [top, 1.25]]),
+    rB: 0.12,
+  });
+  return { F, lip, top, deck: top + 0.12, hw: hws[Math.floor(hws.length / 2)], loft };
+}
 
 /** The definition of the MT1 (`max` false) or the MT1 Max (`max` true). */
 export function mt1Def(max) {
   const site = max ? 'pd-mt1max' : 'pd-mt1', img = max ? 'pd-mt1max-img' : 'pd-mt1-img';
   const src = max ? [site, img, 'pd-mt1max-pr', 'rl-mt1max', 'rs-mt1max', 'as-mt1max'] : [site, img, 'pd-mt1-ppt', 'pd-mt1-manual', 'rs-mt1', 'hh-mt1'];
   const name = max ? 'MT1 Max' : 'MT1';
+  const { F, lip, top, deck, hw: HW, loft: HL } = front(max);
+  const M = (n) => box(F, n), P2 = (a, b) => pair(F, a, b);
+  const LY0 = lip.y0, LY1 = lip.y1, LT = LY1 - LY0;
+  // the side profile with the wheel arch, from the lip's foot up to the deck
+  const SIDE = [[-4.05, LY0 - 0.25, 0.15], [-3.12, LY0 - 0.25, 0], [-3.12, 1.7, 0.55], [-2.5, 2.58, 0.6], [-0.9, 2.58, 0.6], [-0.28, 1.7, 0.55], [-0.28, LY0 - 0.25, 0],
+    [1.85, LY0 - 0.25, 0.08], [1.85, deck - 0.15, 0.08], [-3.7, deck - 0.15, 0.3], [-4.05, deck - 0.6, 0.35]];
+  const DECK = [[-HW, -4.15, 0.75], [HW, -4.15, 0.75], [HW, 1.95, 0.2], [-HW, 1.95, 0.2]];
   return {
     id: max ? 'mt1max' : 'mt1',
     name: `PUDU ${name}`,
@@ -88,36 +125,37 @@ export function mt1Def(max) {
       // ───────────── Shell & covers ─────────────
       {
         id: 'top-cover', name: 'Top deck', group: 'shell', layer: 0, delay: 0,
-        home: [0, 4.2, 0], ex: [0, 4.4, -0.6], tag: 'Deck', conf: 'named', src: [img],
-        desc: 'The flat black deck behind the hood, with the status screen at the rear and a blue light strip at each front corner.',
+        home: [0, deck - 0.15, 0], ex: [0, 4.0, -0.6], tag: 'Deck', conf: 'named', src: [img],
+        desc: 'The flat black deck behind the hood, with the status screen and the stop button in its rear half, a small badge window with the maker\'s mark just behind the hood, and a blue light strip at each front corner, as PUDU\'s top view shows.',
         specs: [['Robot height', max ? '675 mm (warning light 1.2 m)' : '490 mm']],
         build(b) {
           b.profile(DECK, 0.3, { axis: 'y', m: 'shell', bevel: 0.1 });
           // the status screen in its bezel, at the rear
-          b.box(2.3, 0.1, 1.6, { m: 'trim', r: 0.04, at: [0, 0.18, -2.75] });
-          b.box(1.8, 0.04, 1.2, { m: 'screen', r: 0.015, at: [0, 0.24, -2.75], e: false });
-          b.box(0.9, 0.04, 0.42, { m: 'green', r: 0.015, at: [0, 0.27, -2.75], e: false }); // the charge display
+          b.box(2.3, 0.1, 1.75, { m: 'trim', r: 0.04, at: [0, 0.18, -1.05] });
+          b.box(1.8, 0.04, 1.3, { m: 'screen', r: 0.015, at: [0, 0.24, -1.05], e: false });
+          b.box(1.1, 0.04, 0.6, { m: 'green', r: 0.015, at: [0, 0.27, -1.05], e: false }); // the charge display
           // the small badge window in the middle
-          b.box(0.55, 0.08, 1.0, { m: 'glass', r: 0.035, at: [0, 0.17, -0.5], e: false });
-          b.box(0.3, 0.03, 0.4, { m: 'ledBlue', r: 0.01, at: [0, 0.22, -0.5], e: false });
+          b.box(0.55, 0.08, 1.0, { m: 'glass', r: 0.035, at: [0, 0.17, 1.35], e: false });
+          b.box(0.3, 0.03, 0.4, { m: 'ledBlue', r: 0.01, at: [0, 0.22, 1.35], e: false });
           // the blue light strips at the front corners
-          for (const s of [-1, 1]) b.box(0.12, 0.09, 1.1, { m: 'ledBlue', r: 0.04, at: [s * 2.62, 0.14, 1.25], e: false });
+          for (const s of [-1, 1]) b.box(0.12, 0.09, 1.1, { m: 'ledBlue', r: 0.04, at: [s * (HW - 0.12), 0.14, 1.25], e: false });
         },
       },
       {
         id: 'front-shell', name: 'Front hood', group: 'shell', layer: 0, delay: 0.03,
-        home: [0, 0, 2.85], ex: [0, 1.0, 6.2], tag: 'Light bar', conf: 'named', src: [img, site],
-        desc: 'The rounded front hood. Across it runs the white light bar (PUDU: LED light strips that show up dirt in dark corners), above two slots; the vertical window holds the front-view cameras, and the square windows at the lower corners look out for obstacles.',
+        home: [0, 0, 0], ex: [0, 0.8, 3.6], tag: 'Light bar', conf: 'named', src: [img, site],
+        desc: 'The rounded front hood: its width at every height is traced from PUDU\'s front picture, its nose curves back into the deck as PUDU\'s side pictures show, and its front corners round off as in the top view. Across it runs the white light bar (PUDU: LED light strips that show up dirt in dark corners), above two slots; the tall window holds the front-view cameras, and the square windows at the lower corners look out for obstacles.',
         specs: [['Light', 'White LED light bar'], ['Behind it', '2 front-view cameras · RGBD sensors']],
         build(b) {
-          b.profile(HOOD, 2.3, { axis: 'z', m: 'shell', bevel: 0.45, bs: 4 });
-          const f = 1.16; // the front face
-          b.box(3.7, 0.16, 0.08, { m: 'lamp', r: 0.03, at: [0, 2.6, f], e: false }); // the light bar
-          for (const y of [2.2, 1.95]) b.box(0.95, 0.09, 0.05, { m: 'graphite', r: 0.02, at: [0, y, f], e: false }); // the two slots
-          for (const s of [-1, 1]) {
-            b.box(0.95, 0.85, 0.16, { m: 'shellDk', r: 0.07, at: [s * 2.1, 2.05, f - 0.04] }); // the corner pods
-            b.box(0.55, 0.42, 0.06, { m: 'glass', r: 0.025, at: [s * 2.1, 2.05, f + 0.06], e: false });
-          }
+          b.skin(HL, HL.rowsBand(HL.y0, HL.y1 - 0.004, -0.36, 0.36), { m: 'shell', thick: 0.12, cols: 40 });
+          b.profile(HL.outline(HL.y1, 64, 0.02), 0.06, { axis: 'y', m: 'shell', at: [0, HL.y1 + 0.01, 0], bevel: 0.02 }); // its top
+          const lt = M('light'), sa = M('slot_a'), sb = M('slot_b'), pod = P2('pod_r', 'pod_l');
+          b.on(HL.place(lt.cy, { x: 0, off: 0.03 }), () => b.box(lt.w, lt.h, 0.06, { m: 'lamp', r: lt.h / 2.2, e: false })); // the light bar
+          for (const sl of [sa, sb]) b.on(HL.place(sl.cy, { x: 0, off: 0.02 }), () => b.box(sl.w, sl.h * 0.7, 0.04, { m: 'graphite', r: 0.02, e: false })); // the two slots
+          for (const sd of [-1, 1]) b.on(HL.place(pod.cy, { x: sd * pod.cx, off: 0.02 }), () => { // the corner pods
+            b.box(pod.w + 0.3, pod.h + 0.3, 0.12, { m: 'shellDk', r: 0.07 });
+            b.box(pod.w, pod.h, 0.06, { m: 'glass', r: 0.025, at: [0, 0, 0.05], e: false });
+          });
         },
       },
       {
@@ -126,53 +164,54 @@ export function mt1Def(max) {
         desc: 'The back of the body, behind the battery, with the rear lamps and a grip. Its details are not shown in the pictures reached.',
         specs: [['Battery behind it', max ? '60 Ah' : '45 Ah (listing)']],
         build(b) {
-          b.profile([[-2.95, 0.85, 0.2], [2.95, 0.85, 0.2], [2.95, 3.7, 0.4], [2.7, 4.05, 0.3], [-2.7, 4.05, 0.3], [-2.95, 3.7, 0.4]], 0.38, { axis: 'z', m: 'shell', bevel: 0.12 });
-          for (const s of [-1, 1]) b.box(0.9, 0.12, 0.06, { m: 'red', r: 0.02, at: [s * 2.1, 3.45, -0.2], e: false }); // rear lamps
-          b.box(1.8, 0.35, 0.12, { m: 'trim', r: 0.05, at: [0, 2.7, -0.2] }); // the grip
+          b.profile([[-HW, LY0 - 0.25, 0.2], [HW, LY0 - 0.25, 0.2], [HW, deck - 0.5, 0.4], [HW - 0.25, deck - 0.15, 0.3], [-(HW - 0.25), deck - 0.15, 0.3], [-HW, deck - 0.5, 0.4]], 0.38, { axis: 'z', m: 'shell', bevel: 0.12 });
+          for (const s of [-1, 1]) b.box(0.9, 0.12, 0.06, { m: 'red', r: 0.02, at: [s * 2.1, deck - 0.8, -0.2], e: false }); // rear lamps
+          b.box(1.8, 0.35, 0.12, { m: 'trim', r: 0.05, at: [0, (LY0 + deck) / 2, -0.2] }); // the grip
         },
       },
       ...[-1, 1].map((s) => ({
         id: s > 0 ? 'side-shell-l' : 'side-shell-r', name: s > 0 ? 'Left side panel' : 'Right side panel',
         group: 'shell', layer: 0, delay: 0.06,
-        home: [s * 2.8, 0, 0], ex: [s * 4.4, 0.5, 0], tag: s > 0 ? 'Latch' : 'Charge port', conf: 'named', src: [img],
+        home: [s * (HW - 0.16), 0, 0], ex: [s * 4.4, 0.5, 0], tag: s > 0 ? 'Latch' : 'Charge port', conf: 'named', src: [img],
         desc: `The black side of the body, round the wheel arch, with "PUDU ${name}" moulded at the front, a ${s > 0 ? 'lime-green latch for the bin' : 'lime-green latch and the charging port'}${max ? ' and a side camera window' : ''}.`,
         specs: [['Width', '600 mm overall']],
         build(b) {
           b.profile(SIDE, 0.32, { axis: 'x', m: 'shell', bevel: 0.1, cs: 14 });
           const o = s * 0.17; // the outer face
-          b.box(0.06, 0.08, 4.4, { m: 'shellDk', at: [o, 3.7, -1.5], e: false }); // the crease
-          b.box(0.08, 0.55, 3.1, { m: 'trim', r: 0.03, at: [o * 0.9, 1.15, 0.75], e: false }); // the lower skirt band
-          b.box(0.12, 0.42, 0.95, { m: 'lime', r: 0.05, at: [o, 3.05, -2.95] }); // the latch
+          b.box(0.06, 0.08, 4.4, { m: 'shellDk', at: [o, deck - 0.55, -1.5], e: false }); // the crease
+          b.box(0.08, 0.55, 3.1, { m: 'trim', r: 0.03, at: [o * 0.9, LY0 + 0.05, 0.75], e: false }); // the lower skirt band
+          b.box(0.12, 0.42, 0.95, { m: 'lime', r: 0.05, at: [o, deck - 1.2, -2.95] }); // the latch
           if (s < 0) { // the charging port
-            b.box(0.08, 0.6, 1.3, { m: 'trim', r: 0.03, at: [o, 2.75, 0.4] });
-            b.cyl(0.12, 0.12, 0.05, { m: 'steel', rot: [0, 0, PI / 2], at: [o + s * 0.05, 2.75, 0.75], seg: 16, e: false });
+            b.box(0.08, 0.6, 1.3, { m: 'trim', r: 0.03, at: [o, deck - 1.5, 0.4] });
+            b.cyl(0.12, 0.12, 0.05, { m: 'steel', rot: [0, 0, PI / 2], at: [o + s * 0.05, deck - 1.5, 0.75], seg: 16, e: false });
           }
-          if (max) b.box(0.14, 0.55, 1.4, { m: 'glass', r: 0.06, at: [o, 3.35, -1.2], rot: [0.15, 0, 0] }); // the side camera window
+          if (max) b.box(0.14, 0.55, 1.4, { m: 'glass', r: 0.06, at: [o, deck - 0.85, -1.2], rot: [0.15, 0, 0] }); // the side camera window
           const tex = labelTex(`PUDU ${name}`, { color: '#5d646c' });
-          b.mesh(new THREE.PlaneGeometry(2.2, 0.42), { m: { k: 'shellDk', id: 'name-' + name, map: tex, alphaTest: 0.35 }, at: [o + s * 0.01, 3.3, 0.9], rot: [0, s * PI / 2, 0], e: false });
+          b.mesh(new THREE.PlaneGeometry(2.2, 0.42), { m: { k: 'shellDk', id: 'name-' + name, map: tex, alphaTest: 0.35 }, at: [o + s * 0.01, deck - 0.95, 0.9], rot: [0, s * PI / 2, 0], e: false });
         },
       })),
       {
         id: 'bumper', name: 'Front lip and bumper', group: 'shell', layer: 0, delay: 0.1,
-        home: [0, 1.2, 0], ex: [0, -0.4, 5.2], tag: 'Contact', conf: 'named', src: [img, max ? site : 'pd-mt1-ppt'],
-        desc: 'The wide black lip that juts out over the two disc brushes, with the contact strip at its front edge that stops the robot on touch.',
+        home: [0, (LY0 + LY1) / 2, 0], ex: [0, -0.4, 4.6], tag: 'Contact', conf: 'named', src: [img, max ? site : 'pd-mt1-ppt'],
+        desc: 'The wide black lip that juts out over the two disc brushes (600 mm wide; its height and depth traced from PUDU\'s front and top pictures), with the contact strip at its front edge that stops the robot on touch.',
         specs: [['Min. path', '75 cm']],
         build(b) {
-          b.profile(LIP, 0.38, { axis: 'y', m: 'trim', bevel: 0.12 });
-          b.box(4.6, 0.14, 0.12, { m: 'rubber', r: 0.05, at: [0, 0, 4.17], e: false });
+          b.profile(LIP, LT, { axis: 'y', m: 'trim', bevel: Math.min(0.26, LT / 2 - 0.01), bs: 5 });
+          b.box(3.2, LT * 0.3, 0.12, { m: 'rubber', r: 0.05, at: [0, -LT * 0.2, 4.15], e: false });
+          b.box(2.4, LY0 - 0.15, 0.08, { m: 'rubber', at: [0, -LT / 2 - (LY0 - 0.15) / 2, 3.35] }); // the dark flap under it, between the brushes
         },
       },
       {
         id: 'handle', name: 'Extendable steering handle', group: 'ui', layer: 0, delay: 0.08,
-        home: [0, 4.55, -2.6], ex: [0, 3.2, -3.4], tag: 'Push', conf: 'confirmed', src: [site, img],
+        home: [0, deck + 0.18, -2.6], ex: [0, 3.0, -3.4], tag: 'Push', conf: 'confirmed', src: [site, img],
         desc: 'The handle folded round the rear of the deck. It pulls up so staff can steer the robot by hand between areas.',
         specs: [['Use', 'Moving the robot by hand']],
         build(b) {
           for (const s of [-1, 1]) {
-            b.cyl(0.08, 0.08, 3.0, { m: 'trim', rot: [PI / 2, 0, 0], at: [s * 2.55, 0, 0.1], seg: 12 });
-            b.box(0.3, 0.3, 0.4, { m: 'shellDk', r: 0.08, at: [s * 2.55, -0.08, 1.55] }); // the pivot
+            b.cyl(0.08, 0.08, 3.0, { m: 'trim', rot: [PI / 2, 0, 0], at: [s * (HW - 0.2), 0, 0.1], seg: 12 });
+            b.box(0.3, 0.3, 0.4, { m: 'shellDk', r: 0.08, at: [s * (HW - 0.2), -0.08, 1.55] }); // the pivot
           }
-          b.cyl(0.09, 0.09, 5.1, { m: 'trim', rot: [0, 0, PI / 2], at: [0, 0, -1.4], seg: 14 });
+          b.cyl(0.09, 0.09, 2 * (HW - 0.2), { m: 'trim', rot: [0, 0, PI / 2], at: [0, 0, -1.4], seg: 14 });
           b.cyl(0.11, 0.11, 1.6, { m: 'rubber', rot: [0, 0, PI / 2], at: [0, 0, -1.4], seg: 14, e: false }); // the grip
         },
       },
@@ -180,31 +219,34 @@ export function mt1Def(max) {
       // ───────────── Controls ─────────────
       {
         id: 'e-stop', name: 'Emergency stop', group: 'ui', layer: 0, delay: 0.1,
-        home: [-1.55, 4.45, -2.75], ex: [-1.8, 4.2, -3.2], tag: 'Stop', conf: 'named', src: [img],
-        desc: 'The red stop button beside the status screen on the rear of the deck.',
+        home: [-1.95, deck + 0.08, -1.05], ex: [-1.8, 4.0, -1.6], tag: 'Stop', conf: 'named', src: [img],
+        desc: 'The red stop button beside the status screen on the deck, on the right, where PUDU\'s top view shows it.',
         specs: [['Action', 'Cuts drive + brush power']],
-        build(b) { L.eStop(b, { r: 0.24 }); },
+        build(b) { b.cyl(0.22, 0.24, 0.05, { m: 'trim', at: [0, 0.025, 0], seg: 28 }); b.cyl(0.16, 0.16, 0.08, { m: 'red', at: [0, 0.09, 0], seg: 28 }); b.sph(0.16, { m: 'red', cap: PI / 2, at: [0, 0.13, 0], seg: 24 }).scale.set(1, 0.45, 1); },
       },
 
       // ───────────── Cleaning head ─────────────
       ...[-1, 1].map((s) => ({
         id: s < 0 ? 'side-brush-r' : 'side-brush-l', name: s < 0 ? 'Right disc brush' : 'Left disc brush',
         group: 'clean', layer: 3, delay: 0.1,
-        home: [s * 1.72, 0.32, 3.3], ex: [s * 3.4, -1.6, 4.0], tag: '70 cm', conf: 'confirmed', src: [site, img],
+        home: [s * 1.72, LY0 - 0.55, 3.3], ex: [s * 3.4, -1.6, 4.0], tag: '70 cm', conf: 'confirmed', src: [site, img],
         desc: 'One of the two disc brushes under the front lip, with long splayed bristles. PUDU says they take larger debris like leaves and bottles and still sweep up fine dust; the two meet in the middle to cover the full width.',
         specs: [['Cleaning width', '70 cm with side brush'], ['Debris', 'Leaves, bottles, fine dust']],
-        build(b) { L.discBrush(b, { r: 1.75, hub: 0.55, n: 44 }); },
+        build(b) {
+          b.cyl(0.95, 0.95, 0.3, { m: 'trim', at: [0, 0.38, 0], seg: 40 }); // the brush housing under the lip
+          L.discBrush(b, { r: 2.0, hub: 0.6, n: 64, droop: Math.atan2(LY0 - 0.55, 1.45) - 0.1, m: { k: 'bristle', id: 'black-bristle', color: 0x121416 } });
+        },
       })),
       {
         id: 'roller-brush', name: 'Main roller brush', group: 'clean', layer: 3, delay: 0.04,
         home: [0, 0.45, 0.4], ex: [0, -2.4, 0.6], tag: 'Sweep', conf: 'named', src: ['rs-mt1', img],
         desc: 'The roller across the middle (red in PUDU\'s side picture) that throws the sweepings back into the bin.',
         specs: [['Works with', 'The disc brushes and the suction']],
-        build(b) { L.roller(b, { r: 0.42, len: 4.4, rows: 24, m: { k: 'bristle', id: 'red-bristle', color: 0x8c1d24 } }); },
+        build(b) { L.roller(b, { r: 0.42, len: 4.4, rows: 24, m: { k: 'bristle', id: 'red-bristle', color: 0x5a1519 } }); },
       },
       {
         id: 'trash-bin', name: 'Trash bin', group: 'air', layer: 1, delay: 0.06,
-        home: [0, 2.45, 0.2], ex: [0, 2.6, 3.4], tag: '35 L', conf: 'confirmed', src: [site, max ? 'pd-mt1-manual' : 'mbs-mt1'],
+        home: [0, (LY0 + deck) / 2, 0.2], ex: [0, 2.6, 3.4], tag: '35 L', conf: 'confirmed', src: [site, max ? 'pd-mt1-manual' : 'mbs-mt1'],
         desc: 'The 35 L debris box the brushes fill. PUDU says it joins the body seamlessly and releases quickly to be emptied; the optional Auto-Empty Station can empty it without staff.',
         specs: [['Capacity', '35 L (9.25 gal)'], ['Release', 'Quick-release']],
         build(b) {
@@ -215,7 +257,7 @@ export function mt1Def(max) {
       },
       {
         id: 'filter', name: max ? 'F9 air filter' : 'Air filter', group: 'air', layer: 1, delay: 0.1,
-        home: [0, 3.75, 0.2], ex: [0, 3.6, 0.6], tag: max ? 'F9' : 'Filter', conf: 'confirmed', src: max ? [site, 'pd-mt1max-pr'] : [site, 'hh-mt1'],
+        home: [0, deck - 0.6, 0.2], ex: [0, 3.4, 0.6], tag: max ? 'F9' : 'Filter', conf: 'confirmed', src: max ? [site, 'pd-mt1max-pr'] : [site, 'hh-mt1'],
         desc: max ? 'Non-woven filter paper on a metal frame, grade F9, on top of the bin. PUDU says it cleans itself automatically, so the robot can keep working without staff.'
           : 'The flat pleated filter on top of the debris box. PUDU says high-flow suction and this filter trap the fine particles in the box, so dust is not blown back out.',
         specs: max ? [['Grade', 'F9'], ['Cleaning', 'Automatic']] : [['Air flow', 'High-flow negative pressure']],
@@ -226,7 +268,7 @@ export function mt1Def(max) {
       },
       {
         id: 'vacuum-motor', name: 'Suction fan', group: 'air', layer: 2, delay: 0.04,
-        home: [1.6, 3.2, -2.3], ex: [3.0, 1.6, -2.4], tag: 'Suction', conf: 'named', src: [site],
+        home: [1.6, deck - 1.2, -2.3], ex: [3.0, 1.6, -2.4], tag: 'Suction', conf: 'named', src: [site],
         desc: 'The fan that pulls air through the bin and the filter (PUDU: high-flow negative pressure), so fine dust stays inside. Its rating is not published.',
         specs: [['Rating', 'Not published']],
         build(b) { L.turbine(b, { r: 0.5, h: 0.8 }); },
@@ -249,7 +291,7 @@ export function mt1Def(max) {
       },
       {
         id: 'controller', name: max ? 'Dual-chip controller' : 'Main controller', group: 'power', layer: 1, delay: 0.14,
-        home: [-1.3, 3.35, -2.3], ex: [-3.0, 2.8, -2.6], tag: 'AI', conf: max ? 'confirmed' : 'inferred', src: [site],
+        home: [-1.3, deck - 1.1, -2.3], ex: [-3.0, 2.8, -2.6], tag: 'AI', conf: max ? 'confirmed' : 'inferred', src: [site],
         desc: max ? 'PUDU\'s dual-chip computer: faster AI with built-in redundancy, for adaptive cleaning, trash recognition and spot cleaning. It also builds the map and plans the route.'
           : 'The computer that builds the map, keeps the robot located, recognises trash with the AI cameras and plans the cleaning route.',
         specs: [['Navigation', max ? 'VSLAM · markers · 3D LiDAR SLAM' : 'VSLAM · markers · LiDAR SLAM']],
@@ -264,13 +306,13 @@ export function mt1Def(max) {
         specs: max ? [['Weight', '85 kg'], ['Protection', 'IP54']] : [['Weight', '65 kg']],
         build(b) {
           b.box(4.9, 0.16, 7.2, { m: 'metal', r: 0.05 });
-          for (const s of [-1, 1]) b.box(0.16, 0.45, 7.2, { m: 'metal', at: [s * 2.4, 0.25, 0] });
+          for (const s of [-1, 1]) b.box(0.16, 0.45, 7.2, { m: 'metal', at: [s * (HW - 0.5), 0.25, 0] });
         },
       },
       ...[-1, 1].map((s) => ({
         id: s < 0 ? 'wheel-l' : 'wheel-r', name: s < 0 ? 'Drive wheel (right)' : 'Drive wheel (left)', // ids follow the race's convention (wheel-l at -x)
         group: 'drive', layer: 3, delay: 0.04,
-        home: [s * 2.68, WHEEL.y, WHEEL.z], ex: [s * 3.6, -0.6, -0.4], tag: '1.2 m/s', conf: 'named', src: [img],
+        home: [s * (HW - 0.12), WHEEL.y, WHEEL.z], ex: [s * 3.6, -0.6, -0.4], tag: '1.2 m/s', conf: 'named', src: [img],
         desc: 'One of the two large drive wheels behind the middle, with a grey hub.',
         specs: [['Speed', '0.2–1.2 m/s (adjustable)'], ['Thresholds', '20 mm (user manual)']],
         build(b) { L.tyreWheel(b, { r: WHEEL.r, w: 0.5, side: s }); },
@@ -286,11 +328,12 @@ export function mt1Def(max) {
       // ───────────── Sensing ─────────────
       ...(max ? [{
         id: 'lidar-3d', name: '3D LiDAR', group: 'sense', layer: 0, delay: 0.02,
-        home: [0, 6.05, 2.45], ex: [0, 3.2, 1.0], tag: '3D', conf: 'confirmed', src: [site, img, 'pd-mt1max-pr'],
+        home: [0, (M('lidar').y0 + M('lidar').y1) / 2 - 0.05, 2.45], ex: [0, 3.0, 1.0], tag: '3D', conf: 'confirmed', src: [site, img, 'pd-mt1max-pr'],
         desc: 'The 3D LiDAR on its tower over the hood, with the yellow-and-black ring on top. With the other sensors it maps the site, finds obstacles in real time and works under high ceilings, at night and with heavy interference.',
         specs: [['Detection', 'Up to 150 m (PUDU\'s claim)'], ['Navigation', '3D LiDAR SLAM']],
         build(b) {
-          b.profile([[-0.95, -1.95, 0.12], [0.95, -1.95, 0.12], [0.72, -0.72, 0.25], [-0.72, -0.72, 0.25]], 1.3, { axis: 'z', m: 'shell', bevel: 0.14 }); // the tower
+          const ly = (M('lidar').y0 + M('lidar').y1) / 2 - 0.05, base = top - ly, neck = M('lidar').y0 - ly;
+          b.profile([[-0.95, base, 0.12], [0.95, base, 0.12], [0.72, neck, 0.25], [-0.72, neck, 0.25]], 1.3, { axis: 'z', m: 'shell', bevel: 0.14 }); // the tower
           b.cyl(0.62, 0.66, 0.2, { m: 'trim', at: [0, -0.6, 0], seg: 36 });
           b.cyl(0.6, 0.6, 0.85, { m: 'lens', at: [0, -0.07, 0], seg: 40 }); // the window
           b.cyl(0.62, 0.62, 0.2, { m: 'trim', at: [0, 0.46, 0], seg: 36 });
@@ -299,7 +342,7 @@ export function mt1Def(max) {
         },
       }, {
         id: 'beacon', name: 'Warning light', group: 'ui', layer: 0, delay: 0.04,
-        home: [2.35, 8.0, -3.55], ex: [2.6, 2.2, -1.6], tag: '1.2 m', conf: 'confirmed', src: [site, img],
+        home: [M('pole').cx, 8.0, -3.55], ex: [2.6, 2.2, -1.6], tag: '1.2 m', conf: 'confirmed', src: [site, img],
         desc: 'The 1.2 m warning light on its pole at the rear. With the safety projection light and the audible and visual alarms it makes the robot easy to see for people and drivers.',
         specs: [['Height', '1.2 m'], ['With it', 'Safety projection light · alarms']],
         build(b) {
@@ -312,7 +355,7 @@ export function mt1Def(max) {
       }] : []),
       {
         id: 'lidar-2d', name: 'LiDAR', group: 'sense', layer: 1, delay: 0.04,
-        home: [0, 0.78, 3.4], ex: [0, -1.4, 4.4], tag: 'SLAM', conf: 'confirmed', src: [site],
+        home: [0, LY0 - 0.4, 2.9], ex: [0, -1.4, 4.0], tag: 'SLAM', conf: 'confirmed', src: [site],
         desc: max ? 'The LiDAR low at the front, for chassis-level detection under the lip. Its place here is schematic.'
           : 'The LiDAR for LiDAR SLAM, low at the front under the lip, where PUDU\'s sensor layout covers the front of the chassis. Its exact place here is schematic.',
         specs: [['Use', 'Mapping, positioning and low obstacles']],
@@ -320,17 +363,18 @@ export function mt1Def(max) {
       },
       {
         id: 'vslam-camera', name: 'Fish-eye camera', group: 'sense', layer: 0, delay: 0.06,
-        home: max ? [0, 4.48, 1.1] : [0, 4.18, 3.15], ex: max ? [0, 3.0, 0.4] : [0, 3.2, 1.2], tag: 'VSLAM', conf: max ? 'named' : 'confirmed', src: [site, img],
+        home: max ? [0, deck + 0.04, 1.1] : [0, top + 0.06, 2.5], ex: max ? [0, 3.0, 0.4] : [0, 3.0, 1.2], tag: 'VSLAM', conf: max ? 'named' : 'confirmed', src: [site, img],
         desc: max ? 'The fish-eye camera for visual positioning (VSLAM). Its place here is schematic.' : 'The round camera on top of the hood: PUDU\'s fish-eye camera for visual positioning (VSLAM), looking up and around.',
         specs: [['Use', 'Visual SLAM']],
         build(b) {
-          b.cyl(0.36, 0.42, 0.18, { m: 'trim', seg: 32 });
-          b.sph(0.26, { m: 'lens', cap: PI / 2, at: [0, 0.08, 0], seg: 28 });
+          const d = max ? { w: 0.32 } : M('dome');
+          b.cyl(d.w * 0.6, d.w * 0.68, 0.1, { m: 'trim', seg: 32 });
+          b.sph(d.w * 0.42, { m: 'lens', cap: PI / 2, at: [0, 0.05, 0], seg: 28 });
         },
       },
       {
         id: 'depth-cameras', name: 'RGBD sensors (3)', group: 'sense', layer: 1, delay: 0.06,
-        home: max ? [0, 4.78, 3.22] : [0, 2.05, 3.95], ex: max ? [0, 2.0, 3.2] : [0, 0.8, 4.2], tag: 'Depth', conf: 'confirmed', src: [site, img],
+        home: max ? [0, M('bar').cy, 3.22] : [0, 0, 0], ex: max ? [0, 2.0, 3.2] : [0, 0.6, 3.0], tag: 'Depth', conf: 'confirmed', src: [site, img],
         desc: max ? 'The three-lens sensor bar on the front of the LiDAR tower. PUDU lists 3 RGBD sensors; that they sit in this bar is our reading of the pictures.'
           : 'Depth sensors behind the square windows at the hood\'s lower corners and in the middle. PUDU lists 3 RGBD sensors covering the front of the chassis; their exact places are our reading.',
         specs: [['Count', '3'], ['Use', 'Obstacles in 3D']],
@@ -341,22 +385,26 @@ export function mt1Def(max) {
               b.cyl(0.19, 0.19, 0.06, { m: 'graphite', rot: [PI / 2, 0, 0], at: [x, 0, 0.15], seg: 24, e: false });
               b.cyl(0.11, 0.11, 0.08, { m: 'lens', rot: [PI / 2, 0, 0], at: [x, 0, 0.17], seg: 20, e: false });
             }
-          } else for (const x of [-2.1, 0, 2.1]) b.at([x, x ? 0 : -0.5, 0], () => L.camera(b, { w: 0.42, h: 0.26, d: 0.2, lens: 0.09, ring: false }));
+          } else {
+            const pd = P2('pod_r', 'pod_l');
+            for (const x of [-pd.cx, 0, pd.cx]) b.on(HL.place(pd.cy - (x ? 0 : 0.5), { x, off: -0.05 }), () => L.camera(b, { w: 0.42, h: 0.26, d: 0.2, lens: 0.09, ring: false }));
+          }
         },
       },
       {
         id: 'rgb-camera', name: 'Front-view cameras (2)', group: 'sense', layer: 1, delay: 0.08,
-        home: [0, 3.15, 4.02], ex: [0, 1.4, 4.0], tag: 'AI', conf: 'confirmed', src: [site, img],
+        home: HL.place(M('pill').cy, { x: 0, off: 0.04 }).at, rot0: HL.place(M('pill').cy, { x: 0 }).rot, ex: [0, 1.4, 3.6], tag: 'AI', conf: 'confirmed', src: [site, img],
         desc: 'The two front-view cameras in the tall window at the middle of the hood. They feed the AI that recognises trash in real time and learns new kinds over updates.',
         specs: [['Count', '2'], ['Use', 'AI trash recognition']],
         build(b) {
-          b.box(0.4, 1.0, 0.08, { m: 'glass', r: 0.035 });
-          for (const y of [0.22, -0.18]) b.cyl(0.11, 0.11, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0, y, 0.05], seg: 20, e: false });
+          const pl = M('pill');
+          b.box(pl.w, pl.h, 0.08, { m: 'glass', r: Math.min(0.035, pl.w / 3) });
+          for (const y of [pl.h * 0.28, -pl.h * 0.22]) b.cyl(0.09, 0.09, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [0, y, 0.05], seg: 20, e: false });
         },
       },
       {
         id: 'line-laser', name: max ? 'Line lasers (3)' : 'Line laser', group: 'sense', layer: 1, delay: 0.1,
-        home: [0, 1.62, 4.0], ex: [0, -0.4, 4.2], tag: 'Low', conf: 'named', src: max ? ['rl-mt1max'] : ['pd-mt1-ppt'],
+        home: [0, LY0 + 0.18, 4.17], ex: [0, -0.4, 3.6], tag: 'Low', conf: 'named', src: max ? ['rl-mt1max'] : ['pd-mt1-ppt'],
         desc: 'Lasers that draw a line on the floor ahead to find low obstacles and drops. Their places here are schematic.',
         specs: [['Count', max ? '3' : 'Shown on PUDU\'s diagram']],
         build(b) {

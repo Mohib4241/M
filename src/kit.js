@@ -501,3 +501,28 @@ export function mergePart(b, merge) {
     if (!b.edgeMats.includes(mat)) b.edgeMats.push(mat);
   }
 }
+
+// PUDU's face: a black screen with two tall white rounded outlines for eyes, each with a small flick.
+let _pudu;
+export function puduFaceTexture() {
+  if (_pudu !== undefined) return _pudu;
+  _pudu = canvasTex(512, 300, (g, w, h) => {
+    g.fillStyle = '#050608'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#f4f6f8'; g.lineWidth = 16; g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const cx of [w * 0.36, w * 0.64]) {
+      const ew = 70, eh = 130, r = 34, x = cx - ew / 2, y = h / 2 - eh / 2;
+      g.beginPath();
+      g.moveTo(x + ew - 6, y + eh + 6); // the flick at the lower right
+      g.lineTo(x + ew - 20, y + eh - 4);
+      g.lineTo(x + r, y + eh);
+      g.arcTo(x, y + eh, x, y + eh - r, r);
+      g.lineTo(x, y + r);
+      g.arcTo(x, y, x + r, y, r);
+      g.lineTo(x + ew - r, y);
+      g.arcTo(x + ew, y, x + ew, y + r, r);
+      g.lineTo(x + ew, y + eh - 26);
+      g.stroke();
+    }
+  });
+  return _pudu;
+}

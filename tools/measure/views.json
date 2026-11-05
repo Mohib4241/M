@@ -193,5 +193,126 @@
         "lower_edge": [1650, 3840, 3890, 3860]
       }
     }
+  },
+  "cc1pro": {
+    "front": {
+      "kind": "front",
+      "src": "https://cdn.pudutech.com/official-website/product/CC1Pro/S15.webp",
+      "_note": "PUDU's front picture of the white and lime colour; the shape is the same as the dark one shown.",
+      "height_mm": 695,
+      "top_px": 39,
+      "floor_px": 302,
+      "rows_mm": [8, 672],
+      "exclude": [[55, 290, 150, 335]],
+      "regions": {
+        "screen": {
+          "mode": "dark",
+          "thr": 70,
+          "seed": [190, 90],
+          "box": [122, 48, 258, 126],
+          "close": 3
+        },
+        "pod": {
+          "mode": "dark",
+          "thr": 100,
+          "seed": [185, 195],
+          "box": [158, 145, 213, 226],
+          "close": 3
+        }
+      },
+      "marks": {
+        "dome": [181, 39, 195, 49],
+        "ear_r": [140, 129, 153, 141],
+        "ear_l": [225, 129, 238, 141],
+        "cam": [179, 128, 191, 140],
+        "lens": [179, 181, 191, 193],
+        "sonar_r1": [119, 207, 131, 219],
+        "sonar_r2": [131, 207, 143, 219],
+        "sonar_l1": [233, 207, 245, 219],
+        "sonar_l2": [245, 207, 257, 219],
+        "slot": [171, 255, 206, 264],
+        "base": [80, 245, 295, 300],
+        "gap": [90, 236, 285, 246]
+      }
+    }
+  },
+  "mt1": {
+    "front": {
+      "kind": "front",
+      "src": "https://cdn.pudutech.com/official-website/mt1/S13-1.webp",
+      "_note": "Taken from a little above, so heights scale from the 490 mm height and widths from the 600 mm front lip.",
+      "height_mm": 490,
+      "top_px": 23,
+      "floor_px": 282,
+      "width_mm": 600,
+      "width_px": 296,
+      "rows_mm": [160, 455],
+      "regions": {},
+      "marks": {
+        "dome": [193, 23, 208, 34],
+        "pill": [191, 58, 209, 102],
+        "lens_a": [195, 62, 205, 72],
+        "lens_b": [195, 86, 205, 96],
+        "light": [125, 124, 273, 136],
+        "slot_a": [180, 143, 219, 150],
+        "slot_b": [180, 158, 219, 165],
+        "pod_r": [90, 138, 122, 162],
+        "pod_l": [278, 138, 310, 162],
+        "lip": [52, 166, 348, 202],
+        "brush_r": [26, 200, 200, 285],
+        "brush_l": [200, 200, 374, 285]
+      }
+    },
+    "plan": {
+      "kind": "top",
+      "src": "https://cdn.pudutech.com/official-website/mt1/S10-1.webp",
+      "_note": "From above, front up, docked at the Auto-Empty Station; the robot's 840 mm length sets the scale.",
+      "length_mm": 840,
+      "span_px": [136, 382],
+      "rows_mm": [0, 840],
+      "step_mm": 20,
+      "regions": {},
+      "marks": {},
+      "fg": {
+        "thr": 95,
+        "box": [150, 125, 430, 395]
+      }
+    }
+  },
+  "mt1max": {
+    "front": {
+      "kind": "front",
+      "src": "https://cdn.pudutech.com/parameters_robot_db8ac9e6cc.png",
+      "_note": "Taken from a little above, so heights scale from the 675 mm height (top of the LiDAR) and widths from the 600 mm front lip.",
+      "height_mm": 675,
+      "top_px": 362,
+      "floor_px": 891,
+      "width_mm": 600,
+      "width_px": 432,
+      "rows_mm": [140, 470],
+      "exclude": [[534, 40, 560, 525], [215, 530, 245, 580], [576, 530, 606, 580]],
+      "regions": {},
+      "marks": {
+        "lidar": [361, 362, 457, 482],
+        "hazard": [359, 383, 457, 401],
+        "bar": [359, 494, 459, 522],
+        "lens_1": [363, 500, 385, 516],
+        "lens_2": [395, 500, 417, 516],
+        "lens_3": [427, 500, 449, 516],
+        "e_stop": [277, 505, 298, 521],
+        "pole": [539, 47, 550, 500],
+        "lamp": [519, 47, 571, 165],
+        "pill": [399, 585, 416, 655],
+        "light": [307, 671, 516, 698],
+        "slot_a": [384, 711, 438, 719],
+        "slot_b": [384, 734, 438, 742],
+        "pod_r": [257, 698, 287, 722],
+        "pod_l": [534, 698, 564, 722],
+        "lip": [194, 745, 626, 800],
+        "side_led_r": [227, 542, 241, 566],
+        "side_led_l": [578, 542, 592, 566]
+      },
+      "axis_px": 410
+    }
   }
 }
