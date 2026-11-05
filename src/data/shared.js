@@ -54,6 +54,7 @@ export const SOURCES = {
   'pd-mt1-img': { t: 'PUDU Robotics: MT1 product pictures (product page)', u: 'https://www.pudurobotics.com/products/mt1' },
   'pd-mt1max': { t: 'PUDU Robotics: MT1 Max AI-powered 3D perception robotic sweeper', u: 'https://www.pudurobotics.com/products/mt1-max' },
   'pd-mt1max-img': { t: 'PUDU Robotics: MT1 Max product pictures (product page)', u: 'https://www.pudurobotics.com/products/mt1-max' },
+  'gs-ph-img': { t: 'Gausium: Phantas front view and product pictures', u: 'https://gausium.com/specs/phantas/' },
   'gs-marvel-pics': { t: 'Gausium: Marvel product pictures (front, side and top views)', u: 'https://gausium.com/marvel/' },
   'pd-mt1-ppt': { t: 'PUDU MT1 product introduction (EN, 2025-05-08)', u: 'https://www.czapnik.co.il/wp-content/uploads/2026/08/PUDU-MT1-Product-Intro.-PPT-EN20250508-1.pdf' },
   'rs-mt1':    { t: 'RobotShop: PUDU MT1 robotic sweeper and vacuum', u: 'https://www.robotshop.com/products/pudu-mt1-robotic-sweeper-vacuum' },

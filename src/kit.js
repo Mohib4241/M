@@ -220,6 +220,14 @@ export class Builder {
     return this.mesh(geo, { thr: 30, ...o });
   }
 
+  // A panel of a measured body (see loft.js): rows [y, t0, t1] of the loft's surface, with a thickness.
+  skin(loft, rows, o = {}) {
+    return this.mesh(loft.panel(rows, o), { thr: 40, ...o });
+  }
+
+  // Something set on a measured surface, facing out of it: b.on(loft.place(y, { x }), () => { ... }).
+  on(pl, fn) { return this.at(pl.at, fn, pl.rot, 'YXZ'); }
+
   // A turned part from a half outline [[r, y], ...] spun round the Y axis (lamp heads, knobs, hubs).
   lathe(pts, o = {}) {
     const geo = new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), o.seg ?? 32);
@@ -267,11 +275,11 @@ export class Builder {
 
   add(obj) { this.cur.add(obj); return obj; }
 
-  // Draw a sub-module at an offset: b.at([x,y,z], () => { ...b.box(...) }, [rx,ry,rz])
-  at(pos, fn, rot) {
+  // Draw a sub-module at an offset: b.at([x,y,z], () => { ...b.box(...) }, [rx,ry,rz], order)
+  at(pos, fn, rot, order) {
     const g = new THREE.Group();
     g.position.set(pos[0], pos[1], pos[2]);
-    if (rot) g.rotation.set(rot[0], rot[1], rot[2]);
+    if (rot) g.rotation.set(rot[0], rot[1], rot[2], order || 'XYZ');
     const prev = this.cur;
     prev.add(g);
     this.cur = g;
@@ -283,6 +291,7 @@ export class Builder {
 
 // Canvas texture for the CC1 Pro touchscreen, so the display reads as a live UI.
 export function screenTexture(accent = '#35e0ff') {
+  if (typeof document === 'undefined') return null; // outside a page (tests)
   const c = document.createElement('canvas');
   c.width = 512; c.height = 320;
   const g = c.getContext('2d');
@@ -315,6 +324,7 @@ export function screenTexture(accent = '#35e0ff') {
 
 // The Phantas screen when idle: a dark glass with a faint pattern and two rounded-square "eyes".
 export function eyesTexture() {
+  if (typeof document === 'undefined') return null; // outside a page (tests)
   const c = document.createElement('canvas');
   c.width = 512; c.height = 320;
   const g = c.getContext('2d');
@@ -339,6 +349,7 @@ export function eyesTexture() {
 let _wave;
 export function waveBump() {
   if (_wave) return _wave;
+  if (typeof document === 'undefined') return null; // outside a page (tests)
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d');

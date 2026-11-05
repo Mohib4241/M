@@ -4,9 +4,32 @@
 // reconstruction, not CAD.
 import * as THREE from 'three';
 import * as L from '../lib.js';
-import { eyesTexture } from '../kit.js';
+import { eyesTexture, carbonTex } from '../kit.js';
+import { line } from '../loft.js';
+import { view, loftFrom, box, pair } from '../measured.js';
+import shape from './shapes/phantas.js';
 
 const PI = Math.PI;
+
+// ── The measured body ──
+// Widths at every height come from Gausium's front view of the Phantas (src/data/shapes/phantas.js):
+// a skirt 484 mm wide, a body 426 mm wide whose top rounds in at the shoulders, and the lid. In plan the
+// body is a rounded box 540 mm deep (from the photographs of the unit), the skirt a little longer.
+const F = view(shape, 'front');
+const SKIRT = 1.3, BAND = 4.04, LID = 5.12; // the skirt's top, the head band's foot, the lid's lower edge
+const body = loftFrom(F, {
+  extra: [[5.16, 1.76], [5.2, 1.64], [5.23, 1.48]],
+  zF: (y) => (y < SKIRT ? 2.93 : y < LID ? 2.7 : 2.6),
+  zB: (y) => (y < SKIRT ? -2.93 : y < LID ? -2.7 : -2.6),
+  rF: (y) => (y < SKIRT ? 1.0 : y < LID ? 0.9 : 0.85),
+  rB: (y) => (y < SKIRT ? 1.0 : y < LID ? 0.9 : 0.85),
+});
+const TOP = body.y1;
+const FRONT = 0.62; // the front panel covers the middle of the width seen from the front
+const SKIN = { thick: 0.08 };
+const M = (n) => box(F, n), P2 = (a, b2) => pair(F, a, b2);
+const tFront = (y) => body.tAtX(y, FRONT * body.sec(y).hw);
+const CARBON = { k: 'shell', id: 'carbon', map: carbonTex(), color: 0x5a5f66, roughness: 0.55, clearcoat: 0.35, clearcoatRoughness: 0.3 };
 
 export default {
   id: 'phantas',
@@ -49,85 +72,97 @@ export default {
 
   parts: [
     // ───────────── Shell & covers ─────────────
-    // The body is a rounded box: four flat panels with the rounded corners carried by the side covers.
-    // The lid and the skirt are rounded-rectangle slabs. 1 unit = 100 mm; the body is 420 x 540 mm.
+    // The shell follows Gausium's front view: a measured loft (see loft.js), cut into a lid, a front
+    // panel, two side covers, a rear panel and the skirt.
     {
       id: 'top-cover', name: 'Top cover', group: 'shell', layer: 0, delay: 0,
-      home: [0, 5.11, 0], ex: [0, 4.4, 0], tag: 'Lid', conf: 'named', src: ['photos', 'gs-spec'],
-      desc: 'The black lid over the tanks and the dust bay. The LiDAR, the emergency stop, a ring button and the screen sit on it, with a dark oval slot between them. A grey trim runs under its edge. It is the first piece to lift away.',
-      specs: [['Robot height', '619 mm (with the LiDAR)']],
+      home: [0, 0, 0], ex: [0, 4.0, 0], tag: 'Lid', conf: 'named', src: ['gs-ph-img', 'photos'],
+      desc: 'The black lid on the body, narrower than the body below it (the body rounds in at the shoulders, as Gausium\'s front view shows). The LiDAR, the emergency stop, a round button and the screen sit on it, and two small keys sit on its front edge. It is the first piece to lift away.',
+      specs: [['Robot height', '619 mm (with the LiDAR, Gausium\'s figure)']],
       build(b) {
-        b.panel(4.5, 5.75, 0.42, { m: 'shell', r: 0.95, bevel: 0.12, rot: [-PI / 2, 0, 0] });
-        b.panel(4.3, 5.55, 0.1, { m: 'graphite', r: 0.85, bevel: 0.02, rot: [-PI / 2, 0, 0], at: [0, -0.26, 0], e: false });
-        b.panel(1.1, 0.6, 0.03, { m: 'dark', r: 0.3, bevel: 0.01, rot: [-PI / 2, 0, 0], at: [0, 0.215, -0.45], e: false }); // oval slot
-        b.box(1.2, 0.03, 1.2, { m: 'dark', r: 0.05, at: [-0.2, 0.215, -1.95], e: false }); // LiDAR mount
-        b.panel(0.5, 0.5, 0.03, { m: 'dark', r: 0.25, bevel: 0.01, rot: [-PI / 2, 0, 0], at: [0.9, 0.215, -1.9], e: false }); // ring-button bezel
+        b.skin(body, body.rowsBand(LID, TOP - 0.004, 0, 1), { m: 'shellDk', ...SKIN, cols: 72 });
+        b.profile(body.outline(TOP, 72, 0.02), 0.06, { axis: 'y', m: 'shellDk', at: [0, TOP + 0.02, 0], bevel: 0.02 });
+        b.box(2.6, 0.03, 0.03, { m: 'trim', at: [0, LID - 0.01, 2.64], e: false }); // the seam under its front edge
+        // the two keys on the front edge
+        for (const n of ['key_r', 'key_l']) { const k = M(n); b.on(body.place(k.cy, { x: k.cx, off: 0.02 }), () => { b.box(k.w, k.h, 0.04, { m: 'trim', r: 0.03 }); b.box(k.w * 0.4, k.h * 0.4, 0.05, { m: 'silver', at: [0, 0, 0.01], e: false }); }); }
       },
     },
     {
       id: 'front-cover', name: 'Front panel', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 3.175, 2.55], ex: [0, 1.0, 4.4], tag: 'Front', conf: 'named', src: ['photos', 'gs-spec'],
-      desc: 'The black front panel. It has a recess for the pull handle under the lid, two small icon keys above it, and the maker\'s emblem and a label field lower down. The corners round away into the side covers.',
-      specs: [['Finish', 'Black, carbon-fibre look']],
+      home: [0, 0, 0], ex: [0, 0.4, 3.6], tag: 'Front', conf: 'named', src: ['gs-ph-img', 'photos'],
+      desc: 'The front: a carbon-weave lower panel with the sensor window and a label field, and above it the smooth black head band with the pull-handle recess and the sensor strip in it. Every position is measured from Gausium\'s front view.',
+      specs: [['Finish', 'Carbon weave below, gloss black above']],
       build(b) {
-        b.panel(2.5, 3.45, 0.32, { m: 'shell', r: 0.3, bevel: 0.08 });
-        b.box(2.25, 0.68, 0.05, { m: 'trim', r: 0.06, at: [0, 0.8, 0.17], e: false }); // handle recess frame
-        b.box(2.0, 0.46, 0.09, { m: 'dark', r: 0.05, at: [0, 0.8, 0.14], e: false });
-        b.box(2.0, 1.5, 0.03, { m: 'trim', r: 0.08, at: [0, -0.75, 0.165], e: false }); // label field
-        // the emblem: two bent bars
-        b.box(0.5, 0.1, 0.04, { m: 'graphite', at: [-0.06, -0.62, 0.19], rot: [0, 0, 0.7], e: false });
-        b.box(0.5, 0.1, 0.04, { m: 'graphite', at: [0.06, -0.86, 0.19], rot: [0, 0, 0.7], e: false });
+        b.skin(body, body.rowsFn(SKIRT, BAND, (y) => [-tFront(y), tFront(y)]), { m: CARBON, ...SKIN });
+        b.skin(body, body.rowsFn(BAND, LID, (y) => [-tFront(y), tFront(y)]), { m: 'shellDk', ...SKIN });
+        // the handle recess and the sensor strip in its top
+        const h = M('handle'), st = M('sensor_strip');
+        b.on(body.place(h.cy, { x: 0, off: 0.0 }), () => b.box(h.w, h.h, 0.06, { m: { k: 'shellDk', id: 'recess', color: 0x060708 }, r: 0.08, e: false }));
+        b.on(body.place(st.cy, { x: 0, off: 0.02 }), () => { b.box(st.w, st.h, 0.04, { m: 'glass', r: st.h / 2.2, e: false }); for (const x of [-0.6, 0, 0.6]) b.cyl(0.07, 0.07, 0.05, { m: 'lens', rot: [PI / 2, 0, 0], at: [x * st.w / 2, 0, 0.01], seg: 16, e: false }); });
+        // the sensor window and the label field under it
+        const w = M('window'), lb = M('label');
+        b.on(body.place(w.cy, { x: w.cx, off: 0.03 }), () => b.box(w.w, w.h, 0.06, { m: 'glass', r: 0.05 }));
+        b.on(body.place(lb.cy, { x: lb.cx, off: 0.01 }), () => b.box(lb.w, lb.h, 0.03, { m: { k: 'shell', id: 'label', color: 0x111316 }, r: 0.06, e: false }));
       },
     },
     {
       id: 'rear-cover', name: 'Rear panel', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 3.175, -2.55], ex: [0, 1.0, -4.4], tag: 'Rear door', conf: 'inferred', src: ['photos', 'gs-spec'],
-      desc: 'Rear panel over the tanks and the drive bay. It faces the dock when the robot is parked on it, with a window that lines up with the dock\'s contacts.',
+      home: [0, 0, 0], ex: [0, 0.4, -3.6], tag: 'Rear door', conf: 'inferred', src: ['photos', 'gs-spec'],
+      desc: 'The rear panel over the tanks and the drive bay. It faces the dock when the robot is parked on it, with a window that lines up with the dock\'s contacts.',
       specs: [['Dock', 'CD-04, auto-recharge']],
       build(b) {
-        b.panel(2.5, 3.45, 0.32, { m: 'shell', r: 0.3, bevel: 0.08 });
-        for (let i = 0; i < 6; i++) b.box(1.5, 0.06, 0.04, { m: 'dark', at: [0, 0.8 - i * 0.15, -0.17], e: false });
-        b.box(1.1, 0.4, 0.04, { m: 'glass', at: [0, -1.3, -0.17], e: false });
+        b.skin(body, body.rowsFn(SKIRT, LID, () => [0.42, 0.58]), { m: 'shell', ...SKIN });
+        for (let i = 0; i < 6; i++) b.on(body.place(4.6 - i * 0.15, { t: 0.5, off: 0.01 }), () => b.box(1.5, 0.06, 0.03, { m: 'dark', e: false }));
+        b.on(body.place(1.75, { t: 0.5, off: 0.01 }), () => b.box(1.1, 0.4, 0.04, { m: 'glass', e: false }));
       },
     },
-    ...[-1, 1].map((s) => ({
-      id: s < 0 ? 'side-cover-l' : 'side-cover-r', name: s < 0 ? 'Right side cover' : 'Left side cover',
+    ...[-1, 1].map((sd) => ({
+      id: sd < 0 ? 'side-cover-l' : 'side-cover-r', name: sd < 0 ? 'Right side cover' : 'Left side cover',
       group: 'shell', layer: 0, delay: 0.06,
-      home: [s * 2.08, 3.175, 0], ex: [s * 4.6, 1.0, 0], tag: 'Side panel', conf: 'named', src: ['photos', 'gs-spec'],
-      desc: 'Side panel that closes the cabinet, with the rounded front and rear corners. A grey plate with a green light bar at its front edge sits on it. It pops off outward so the tanks and wiring can be reached.',
-      specs: [['Width', '445 mm overall']],
+      home: [0, 0, 0], ex: [sd * 4.0, 0.4, 0], tag: 'Side panel', conf: 'named', src: ['gs-ph-img', 'photos'],
+      desc: 'A side of the body from the front corner to the rear corner: carbon weave below, gloss black in the head band with the speaker grille at the front corner, and a grey metal trim down the rear corner, as in Gausium\'s pictures.',
+      specs: [['Width', '426 mm body · 484 mm skirt (measured)']],
       build(b) {
-        b.panel(3.6, 3.45, 0.32, { m: 'shell', r: 0.3, bevel: 0.08, rot: [0, PI / 2, 0] });
-        for (const z of [-1.8, 1.8]) b.cyl(0.9, 0.9, 3.45, { m: 'shell', at: [-s * 0.88, 0, z], seg: 32, e: false }); // the rounded corners
-        b.panel(2.4, 2.7, 0.06, { m: 'graphite', r: 0.35, bevel: 0.02, rot: [0, PI / 2, 0], at: [s * 0.19, -0.1, 0.6], e: false });
-        b.box(0.07, 1.25, 0.15, { m: 'green', r: 0.03, at: [s * 0.24, -0.1, 1.62], e: false });
-        for (let i = 0; i < 6; i++) b.box(0.03, 0.06, 0.9, { m: 'dark', at: [s * 0.17, 1.1 - i * 0.12, -1.2], e: false }); // speaker slits
+        const rows = (y0, y1) => body.rowsFn(y0, y1, (y) => (sd > 0 ? [tFront(y), 0.42] : [0.58, 1 - tFront(y)]));
+        b.skin(body, rows(SKIRT, BAND), { m: CARBON, ...SKIN });
+        b.skin(body, rows(BAND, LID), { m: 'shellDk', ...SKIN });
+        // the grey trim down the rear corner
+        b.skin(body, body.rowsFn(SKIRT + 0.05, LID - 0.1, () => (sd > 0 ? [0.37, 0.405] : [0.595, 0.63])), { m: 'graphite', thick: 0.05, off: 0.02 });
+        // the speaker grille: a patch of small holes on the front corner of the head band
+        const g = P2('grille_r', 'grille_l');
+        for (let i = 0; i < 5; i++) for (let j = 0; j < 9; j++) {
+          b.on(body.place(g.cy - g.h / 2 + (j + 0.5) * (g.h / 9), { x: sd * (g.cx - g.w / 2 + (i + 0.5) * (g.w / 5)), off: 0.005 }), () => b.cyl(0.018, 0.018, 0.02, { m: 'dark', rot: [PI / 2, 0, 0], seg: 6, e: false }));
+        }
+        // the green status light along the front of the trim (seen on the unit photographed)
+        b.on(body.place(3.0, { t: sd > 0 ? 0.365 : 0.635, off: 0.03 }), () => b.box(0.05, 1.2, 0.04, { m: 'green', e: false }));
       },
     })),
     {
       id: 'bumper', name: 'Skirt and bumper', group: 'shell', layer: 0, delay: 0.1,
-      home: [0, 0.825, 0.025], ex: [0, -0.5, 5.3], tag: 'Contact', conf: 'named', src: ['photos', 'gs-spec'],
-      desc: 'The glossy black skirt around the base. Three sensor windows sit across its nose, and a pod on one side houses the side brush. Contact stops the robot; the spec sheet lists anti-collision sensing in its sensor suite.',
+      home: [0, 0, 0], ex: [0, -0.4, 4.4], tag: 'Contact', conf: 'named', src: ['gs-ph-img', 'photos'],
+      desc: 'The glossy black skirt round the base, wider than the body (484 mm in Gausium\'s front view), with the two slot windows across its nose and a yellow mark at each front corner. Contact stops the robot; the spec sheet lists anti-collision sensing.',
       specs: [['Sensor class', 'Anti-collision']],
       build(b) {
-        b.panel(4.45, 5.85, 1.25, { m: 'shellDk', r: 1.0, bevel: 0.22, rot: [-PI / 2, 0, 0] });
-        for (const x of [-1.5, 1.5]) b.box(0.8, 0.28, 0.07, { m: 'steel', r: 0.05, at: [x, 0.12, 2.93], e: false });
-        b.box(0.9, 0.24, 0.07, { m: 'glass', r: 0.05, at: [0, 0.12, 2.94], e: false });
-        for (const x of [-1.95, 1.95]) b.box(0.1, 0.22, 0.05, { m: 'yellow', at: [x, 0.5, 2.62], e: false });
-        b.cyl(0.55, 0.55, 1.0, { m: 'shellDk', at: [-2.2, -0.05, 1.9], seg: 32 }); // the side-brush pod
+        b.skin(body, body.rowsFn(body.y0, SKIRT, () => [0, 1]), { m: 'shellDk', ...SKIN, cols: 72 });
+        b.profile(body.outline(SKIRT - 0.02, 72, 0.25), 0.05, { axis: 'y', m: 'trim', at: [0, SKIRT - 0.02, 0], bevel: 0.02, e: false }); // the shelf where the body sits on it
+        for (const n of ['slot_r', 'slot_l']) { const sl = M(n); b.on(body.place(sl.cy, { x: sl.cx, off: 0.0 }), () => b.box(sl.w, sl.h, 0.05, { m: 'glass', r: sl.h / 2.4, e: false })); }
+        const tb = P2('tab_r', 'tab_l');
+        for (const sd of [-1, 1]) b.on(body.place(tb.cy, { x: sd * tb.cx, off: 0.01 }), () => b.box(tb.w, tb.h, 0.03, { m: 'yellow', e: false }));
+        b.cyl(0.45, 0.45, 0.7, { m: 'shellDk', at: [-1.95, 0.85, 2.05], seg: 32 }); // the side-brush pod, inside the skirt's outline
       },
     },
 
     // ───────────── Controls ─────────────
     {
       id: 'display', name: 'Screen', group: 'ui', layer: 0, delay: 0.05,
-      home: [0, 5.33, 1.2], ex: [0, 5.2, 1.0], tag: 'Face', conf: 'inferred', src: ['photos'],
+      home: [0, TOP + 0.05, 1.15], ex: [0, 4.6, 1.0], tag: 'Face', conf: 'inferred', src: ['photos', 'gs-ph-img'],
       desc: 'A colour screen set into the front half of the lid. On the unit photographed it shows two rounded-square eyes while idle. Its size and what it controls are not stated in the sources reached.',
       specs: [['Seen on the unit', 'Idle face with two eyes']],
       build(b) {
-        b.panel(2.8, 2.0, 0.06, { m: 'glass', r: 0.25, bevel: 0.01, rot: [-PI / 2, 0, 0] });
+        const sc = M('screen');
+        b.panel(sc.w, 1.25, 0.05, { m: 'glass', r: 0.18, bevel: 0.01, rot: [-PI / 2, 0, 0] });
         const tex = eyesTexture();
-        const scr = b.box(2.55, 0.012, 1.78, { m: 'screen', r: 0, at: [0, 0.04, 0], e: false });
+        const scr = b.box(sc.w - 0.15, 0.012, 1.1, { m: 'screen', r: 0, at: [0, 0.035, 0], e: false });
         scr.material.map = tex;
         scr.material.emissiveMap = tex;
         scr.material.emissive = new THREE.Color(0xffffff);
@@ -137,25 +172,25 @@ export default {
     },
     {
       id: 'smart-handle', name: 'Pull handle', group: 'ui', layer: 0, delay: 0.08,
-      home: [0, 4.0, 2.7], ex: [0, 0.3, 5.8], tag: 'Hard keys', conf: 'named', src: ['photos', 'gs-news', 'gs-nz', 'anton-gs'],
+      home: [0, M('grip').cy, 2.62], ex: [0, 0.3, 4.6], tag: 'Hard keys', conf: 'named', src: ['photos', 'gs-news', 'gs-nz', 'anton-gs'],
       desc: 'A handle that sits in a recess at the front, under the lid, with two small keys above it. It switches the robot between automatic and manual operation, so staff can start or steer a job without the screen. Hard keys for basic operations such as picking a cleaning mode were shown as an upgrade at Interclean Amsterdam 2024.',
       specs: [['Operation', 'Switches between auto and manual'], ['Buttons', 'Hard keys such as mode selection (reported)']],
       build(b) {
-        b.box(1.9, 0.3, 0.22, { m: 'dark', r: 0.09, at: [0, 0, 0] });
-        b.box(1.5, 0.05, 0.05, { m: 'steel', at: [0, 0.1, 0.12], e: false });
-        for (const x of [-0.22, 0.22]) b.box(0.2, 0.2, 0.05, { m: 'trim', r: 0.06, at: [x, 0.42, -0.02] });
+        const g = M('grip');
+        b.box(g.w * 0.92, g.h * 0.6, 0.18, { m: 'dark', r: 0.07, at: [0, 0, 0] });
+        b.box(g.w * 0.8, 0.05, 0.05, { m: 'steel', at: [0, g.h * 0.2, 0.1], e: false });
       },
     },
     {
       id: 'e-stop', name: 'Emergency stop', group: 'ui', layer: 0, delay: 0.1,
-      home: [-1.2, 5.37, -1.9], ex: [-0.9, 5.4, -0.6], tag: 'E-stop', conf: 'named', src: ['photos', 'gs-spec'],
-      desc: 'Red mushroom switch on the lid, at the rear corner. It cuts drive and cleaning power at once.',
+      home: [M('e_stop').cx, TOP + 0.04, -1.0], ex: [-0.9, 4.6, -0.6], tag: 'E-stop', conf: 'named', src: ['photos', 'gs-spec'],
+      desc: 'Red mushroom switch on the lid, behind the screen on the right. It cuts drive and cleaning power at once.',
       specs: [['Action', 'Cuts drive + brush power']],
-      build(b) { L.eStop(b, { r: 0.3 }); },
+      build(b) { const e = M('e_stop'); b.cyl(e.w * 0.62, e.w * 0.66, 0.06, { m: 'yellow', at: [0, 0.03, 0], seg: 28 }); b.cyl(e.w / 2, e.w / 2, 0.08, { m: 'red', at: [0, 0.1, 0], seg: 28 }); b.sph(e.w / 2, { m: 'red', cap: PI / 2, at: [0, 0.14, 0], seg: 24 }).scale.set(1, 0.4, 1); },
     },
     {
       id: 'ring-button', name: 'Ring button', group: 'ui', layer: 0, delay: 0.1,
-      home: [0.9, 5.34, -1.9], ex: [0.9, 5.0, -0.6], tag: 'Button', conf: 'inferred', src: ['photos'],
+      home: [M('button').cx, TOP + 0.04, -1.3], ex: [0.9, 4.4, -0.6], tag: 'Button', conf: 'inferred', src: ['photos'],
       desc: 'A round push button with a thin ring around it, at the opposite rear corner of the lid from the emergency stop. What it does is not stated in the sources reached (power or start is typical).',
       specs: [['Seen on the unit', 'Ring-shaped push button on the lid']],
       build(b) {
@@ -336,34 +371,34 @@ export default {
     // ───────────── Sensing ─────────────
     {
       id: 'lidar-2d', name: '2D LiDAR', group: 'sense', layer: 0, delay: 0.02,
-      home: [-0.2, 5.33, -1.95], ex: [0, 6.0, -0.6], tag: '2D scan', conf: 'confirmed', src: ['photos', 'gs-spec'],
-      desc: 'A spinning laser that draws a flat map of walls and obstacles at its height. It sits on top of the lid, at the rear, under a square metal cap, so nothing on the body blocks its view.',
-      specs: [['Type', '2D LiDAR (spec sheet)'], ['Position', 'On the lid, rear centre']],
+      home: [0, TOP + 0.04, -0.9], ex: [0, 4.8, -0.6], tag: '2D scan', conf: 'confirmed', src: ['gs-ph-img', 'gs-spec'],
+      desc: 'A spinning laser that draws a flat map of walls and obstacles at its height. It stands on the lid, behind the middle, in a short round housing on a small base, so nothing on the body blocks its view. Its width is measured from Gausium\'s front view.',
+      specs: [['Type', '2D LiDAR (spec sheet)'], ['Position', 'On the lid, centre rear']],
       build(b) {
-        b.box(1.0, 0.12, 1.0, { m: 'dark', r: 0.04, at: [0, 0.06, 0] });
-        const ring = b.cyl(0.36, 0.36, 0.34, { m: 'lens', at: [0, 0.29, 0], seg: 32 });
+        const base = M('lidar_base'), h = M('lidar');
+        b.box(base.w, 0.12, base.w, { m: 'graphite', r: 0.05, at: [0, 0.06, 0] });
+        b.cyl(h.w / 2, h.w / 2 + 0.02, 0.06, { m: 'silver', at: [0, 0.15, 0], seg: 32 });
+        const ring = b.cyl(h.w / 2 - 0.01, h.w / 2 - 0.01, 0.3, { m: 'lens', at: [0, 0.33, 0], seg: 32 });
         ring.userData.spin = 1.4;
-        b.box(0.78, 0.18, 0.78, { m: 'silver', r: 0.07, at: [0, 0.55, 0] });
-        const top = b.cyl(0.18, 0.4, 0.14, { m: 'silver', at: [0, 0.71, 0], seg: 4 });
-        top.rotation.y = PI / 4;
-        b.box(0.18, 0.1, 0.06, { m: 'accent', at: [0, 0.3, 0.37], e: false });
+        b.cyl(h.w / 2, h.w / 2, 0.12, { m: 'silver', at: [0, 0.54, 0], seg: 32 });
       },
     },
     {
       id: 'depth-cameras', name: '3D depth cameras', group: 'sense', layer: 0, delay: 0.04,
-      home: [0, 0.85, 2.5], ex: [0, -0.2, 5.8], tag: '3D', conf: 'confirmed', src: ['gs-spec', 'leo'],
-      desc: 'Depth cameras that see the shape of things above the floor, such as table edges, chair legs and people. They look out through the two outer windows across the nose of the skirt. They give the robot 3D obstacle awareness. Their exact place is not shown in the sources reached.',
+      home: [0, P2('lens_r', 'lens_l').cy, 2.78], ex: [0, 0.2, 4.6], tag: '3D', conf: 'confirmed', src: ['gs-spec', 'leo', 'gs-ph-img'],
+      desc: 'Depth cameras that see the shape of things above the floor, such as table edges, chair legs and people. They look out through the two lenses in the dark window on the front panel (measured from Gausium\'s front view). That these lenses are the depth cameras is our reading.',
       specs: [['Type', '3D depth cameras (spec sheet)'], ['Role', '3D obstacle perception']],
       build(b) {
-        for (const s of [-1, 1]) b.at([s * 1.5, 0, 0], () => L.camera(b, { w: 0.75, h: 0.3, d: 0.3, lens: 0.1 }));
+        const l = P2('lens_r', 'lens_l'), off = (M('lens_l').cx + M('lens_r').cx) / 2;
+        for (const s of [-1, 1]) b.at([off + s * (M('lens_l').cx - M('lens_r').cx) / 2, 0, 0], () => { b.cyl(l.w / 2, l.w / 2, 0.06, { m: 'trim', rot: [PI / 2, 0, 0], seg: 24, e: false }); b.cyl(l.w * 0.32, l.w * 0.32, 0.08, { m: 'lens', rot: [PI / 2, 0, 0], seg: 20, e: false }); });
       },
     },
     {
       id: 'rgb-camera', name: 'RGB camera', group: 'sense', layer: 0, delay: 0.06,
-      home: [0, 0.85, 2.5], ex: [0, -0.2, 4.6], tag: 'Vision', conf: 'confirmed', src: ['gs-spec'],
-      desc: 'Colour camera for recognising what is in front of the robot and for remote monitoring. It is placed behind the darker middle window of the skirt. Its exact place is not shown in the sources reached.',
+      home: [0, M('sensor_strip').cy, 2.74], ex: [0, 1.4, 4.4], tag: 'Vision', conf: 'confirmed', src: ['gs-spec', 'gs-ph-img'],
+      desc: 'Colour camera for recognising what is in front of the robot and for remote monitoring. It is shown behind the middle lens of the sensor strip at the top of the handle recess; that it sits there is our reading of Gausium\'s front view.',
       specs: [['Type', 'RGB camera (spec sheet)']],
-      build(b) { L.camera(b, { w: 0.5, h: 0.26, d: 0.28, lens: 0.1 }); },
+      build(b) { b.cyl(0.08, 0.08, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], seg: 18, e: false }); },
     },
     {
       id: 'cliff-sensors', name: 'Anti-drop sensors', group: 'sense', layer: 1, delay: 0.1,

@@ -8,9 +8,43 @@
 // reconstruction.
 import * as L from '../lib.js';
 import { carbonTex } from '../kit.js';
+import { line, span, clipZ } from '../loft.js';
+import { view, loftFrom, outline, box, pair } from '../measured.js';
+import shape from './shapes/marvel.js';
 
 const PI = Math.PI;
-const W = 6.99, LEN = 11.08, H = 11.68;
+
+// ── The measured body ──
+// Widths at every height come from Gausium's front view (src/data/shapes/marvel.js); the front and back
+// lines from the side and top pictures; the corner rounding from the top view and the front view's
+// shading. The base (up to 2.05) juts out front and back; the tower above it has a vertical front with
+// the visor bulging over it at the top, and rounds over into the lid.
+const F = view(shape, 'front');
+const body = loftFrom(F, {
+  zF: line([[1.2, 4.72], [2.02, 4.72], [2.16, 3.78], [9.2, 3.78], [9.55, 4.02], [10.7, 4.02], [11.05, 3.82], [11.22, 3.45], [11.32, 2.9]]),
+  zB: line([[1.2, -5.0], [2.02, -5.0], [2.16, -4.58], [10.9, -4.58], [11.15, -4.45], [11.32, -4.2]]),
+  rF: line([[1.2, 1.3], [2.02, 1.3], [2.16, 1.05], [9.0, 1.05], [9.6, 1.4], [11.32, 1.4]]),
+  rB: line([[1.2, 0.9], [2.02, 0.9], [2.16, 0.7], [11.32, 0.7]]),
+});
+const TOP = body.y1, BASE = 2.1;
+const PANEL = outline(F, 'panel', { mirror: true });
+const VISOR = outline(F, 'visor', { mirror: true });
+const RECESS = outline(F, 'recess', { mirror: true });
+const ZP = 1.15; // where the silver pillar ends on each side
+const ZD = -4.3, YD0 = BASE, YD1 = 4.5; // the black side panels' lower edge runs from (ZP, YD0) up to (ZD, YD1)
+const zDiag = (y) => ZP + ((y - YD0) / (YD1 - YD0)) * (ZD - ZP);
+const half = (poly, y) => { const s = span(poly, y); return s ? (s[1] - s[0]) / 2 : null; };
+const recessTop = Math.max(...RECESS.map((p) => p[1])), panelBot = Math.min(...PANEL.map((p) => p[1]));
+// the inner edge of the silver pillars: the edge of the dark region on the front at that height
+function xIn(y) {
+  const v = half(VISOR, y) ?? half(PANEL, y) ?? half(RECESS, y);
+  if (v !== null) return v;
+  const a = half(RECESS, recessTop - 1e-3), b = half(PANEL, panelBot + 1e-3);
+  return a + ((y - recessTop) / (panelBot - recessTop)) * (b - a);
+}
+const sideT = (y, z) => body.tAtZ(y, z);
+const SKIN = { thick: 0.1 };
+const M = (n) => box(F, n), P2 = (a, b2) => pair(F, a, b2);
 
 export default {
   id: 'marvel',
@@ -25,9 +59,9 @@ export default {
   noDock: 'No dock or workstation is listed with the Marvel\'s specifications.',
   mats: {
     studio: {
-      shell:   { color: 0x8d949b, metalness: 0.55, roughness: 0.32, clearcoat: 0.5, clearcoatRoughness: 0.2 },
+      shell:   { color: 0x737a81, metalness: 0.6, roughness: 0.36, clearcoat: 0.35, clearcoatRoughness: 0.25 },
       shellDk: { color: 0x1d2024, metalness: 0.15, roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.2 },
-      trim:    { color: 0x141619 },
+      trim:    { color: 0x0b0c0e, roughness: 0.32, clearcoat: 0.8, clearcoatRoughness: 0.1 },
       graphite:{ color: 0x5c636b },
     },
   },
@@ -57,92 +91,144 @@ export default {
     {
       id: 'top-cover', name: 'Visor and lid', group: 'shell', layer: 0, delay: 0,
       home: [0, 0, 0], ex: [0, 4.2, 0.6], tag: 'Lid', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'The black top: a visor that wraps over the front, with the sensor dome and two white light strips, and a flat lid behind it with the emergency stop. It lifts away first.',
+      desc: 'The black visor that wraps over the front of the top, with the two white light strips and the sensor dome, and the flat lid behind it. Its outline is traced from Gausium\'s front view. It lifts away first.',
       specs: [['Robot height', '1,168 mm']],
       build(b) {
-        b.profile([[-4.45, 10.75, 0], [2.2, 10.75, 0], [3.0, 9.45, 0.25], [3.88, 9.45, 0.15], [3.92, 10.45, 0.55], [3.4, 11.32, 0.65], [-4.45, 11.32, 0.3]], 4.5, { axis: 'x', m: 'trim', bevel: 0.4, bs: 4, cs: 12 });
-        for (const s of [-1, 1]) b.box(0.16, 0.62, 0.08, { m: 'lamp', r: 0.03, at: [s * 1.78, 10.75, 3.82], rot: [-0.35, 0, s * 0.12], e: false }); // the white light strips
-        b.box(2.2, 0.06, 1.3, { m: 'shellDk', r: 0.03, at: [0, 11.34, 1.6], e: false }); // the panel on the lid
-        for (const x of [-1.1, -0.7]) b.cyl(0.13, 0.13, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [x, 9.95, 3.9], seg: 18, e: false }); // small sensors under the dome
-        b.box(1.0, 0.2, 0.06, { m: 'glass', r: 0.04, at: [0.8, 9.95, 3.9], e: false });
+        b.skin(body, body.rowsFront(VISOR, { from: 8.9 }), { m: 'trim', ...SKIN, off: 0.015 });
+        const lid = body.outline(TOP, 72, 0.02);
+        b.profile(clipZ(lid, 0.9, 'above').map(([x, z]) => [x, z]), 0.1, { axis: 'y', m: 'trim', at: [0, TOP + 0.04, 0], bevel: 0.03 });
+        b.profile(clipZ(lid, 0.9, 'below').map(([x, z]) => [x, z]), 0.1, { axis: 'y', m: 'graphite', at: [0, TOP + 0.04, 0], bevel: 0.03 });
+        b.box(2.4, 0.03, 0.05, { m: 'trim', at: [0, TOP + 0.1, 0.9], e: false }); // the seam between visor and lid
+        // the white light strips on the visor's top corners
+        const led = P2('led_r', 'led_l');
+        for (const sd of [-1, 1]) b.on(body.place(led.cy, { x: sd * led.cx, off: 0.03 }), () => b.box(led.w, led.h, 0.05, { m: 'lamp', r: 0.02, e: false }));
+        // the sensors along the visor's lower edge
+        const sa = M('sensor_a'), sb = M('sensor_b'), pill = M('pill');
+        b.on(body.place(sa.cy, { x: sa.cx, off: 0.03 }), () => b.cyl(sa.w / 2, sa.w / 2, 0.05, { m: 'lens', rot: [PI / 2, 0, 0], seg: 24, e: false }));
+        b.on(body.place(sb.cy, { x: sb.cx, off: 0.03 }), () => { b.cyl(sb.w / 2, sb.w / 2, 0.04, { m: 'graphite', rot: [PI / 2, 0, 0], seg: 24, e: false }); b.cyl(sb.w / 4, sb.w / 4, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], seg: 18, e: false }); });
+        b.on(body.place(pill.cy, { x: pill.cx, off: 0.03 }), () => b.box(pill.w, pill.h, 0.05, { m: 'glass', r: pill.h / 2.2, e: false }));
       },
     },
     {
       id: 'front-shell', name: 'Front panel', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 6.2, 3.55], ex: [0, 0.6, 6.4], tag: 'Carbon face', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'The tall black front panel with a carbon-weave finish and the maker\'s mark, between the two silver sides. The dark slot near its top holds a camera; below it a black recess runs across the front over the base.',
-      specs: [['Width', '699 mm overall']],
+      home: [0, 0, 0], ex: [0, 0.4, 6.0], tag: 'Carbon face', conf: 'named', src: ['gs-marvel-pics'],
+      desc: 'The black carbon-weave front panel between the two silver pillars, traced from Gausium\'s front view: wider at the top than at the bottom, with rounded lower corners. Its upper band holds the camera slot; the maker\'s mark sits low in the middle.',
+      specs: [['Panel', 'Carbon weave'], ['Width', '420 mm at the top']],
       build(b) {
-        b.panel(3.5, 6.4, 0.5, { m: { k: 'trim', id: 'carbon', map: carbonTex(), color: 0x8a8f96, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.12 }, r: 0.5, bevel: 0.1 });
-        b.box(2.6, 0.38, 0.08, { m: 'glass', r: 0.04, at: [0, 2.75, 0.25], e: false }); // the slot
-        b.box(0.48, 0.1, 0.04, { m: 'silver', at: [-0.07, -0.45, 0.26], rot: [0, 0, 0.75], e: false }); // the maker's mark
-        b.box(0.48, 0.1, 0.04, { m: 'silver', at: [0.07, -0.72, 0.26], rot: [0, 0, 0.75], e: false });
-        b.box(0.22, 0.1, 0.04, { m: 'silver', at: [0.14, -0.5, 0.26], e: false });
-        b.box(3.7, 0.95, 0.4, { m: 'trim', r: 0.08, at: [0, -3.6, -0.05] }); // the black recess over the base
-        b.box(1.2, 0.1, 0.1, { m: 'trim', r: 0.03, at: [0, -3.15, 0.2], e: false });
+        b.skin(body, body.rowsFront(PANEL), { m: { k: 'trim', id: 'carbon', map: carbonTex(), color: 0x6a6e74, roughness: 0.62, clearcoat: 0.25, clearcoatRoughness: 0.35, envMapIntensity: 0.35 }, ...SKIN, off: 0.025 });
+        const seam = M('seam');
+        b.on(body.place(seam.cy, { x: 0, off: 0.035 }), () => b.box(seam.w, 0.025, 0.02, { m: 'trim', e: false }));
+        const slot = M('slot');
+        b.on(body.place(slot.cy, { x: slot.cx, off: 0.035 }), () => {
+          b.box(slot.w, slot.h, 0.05, { m: 'glass', r: slot.h / 2.2, e: false });
+          b.cyl(0.08, 0.08, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [-0.35, 0, 0.01], seg: 20, e: false });
+          b.box(0.55, 0.12, 0.05, { m: 'graphite', r: 0.02, at: [0.35, 0, 0.01], e: false });
+        });
+        for (const n of ['hole_r', 'hole_l']) { const h = M(n); b.on(body.place(h.cy, { x: h.cx, off: 0.03 }), () => b.cyl(h.w / 2, h.w / 2, 0.02, { m: 'trim', rot: [PI / 2, 0, 0], seg: 10, e: false })); }
+        // the maker's mark: a lightning bolt in two strokes
+        const lg = M('logo');
+        b.on(body.place(lg.cy, { x: lg.cx, off: 0.04 }), () => {
+          b.box(lg.w * 0.95, lg.h * 0.17, 0.02, { m: 'silver', at: [-lg.w * 0.06, lg.h * 0.14, 0], rot: [0, 0, 0.72], e: false });
+          b.box(lg.w * 0.95, lg.h * 0.17, 0.02, { m: 'silver', at: [lg.w * 0.06, -lg.h * 0.14, 0], rot: [0, 0, 0.72], e: false });
+          b.box(lg.w * 0.42, lg.h * 0.15, 0.02, { m: 'silver', at: [lg.w * 0.12, lg.h * 0.02, 0], e: false });
+        });
       },
     },
     {
-      id: 'rear-shell', name: 'Rear body and handle', group: 'shell', layer: 0, delay: 0.03,
-      home: [0, 0, 0], ex: [0, 0.6, -6.0], tag: 'Handle', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'The black rear body behind the silver sides, over the waste-water tank, with the push handle across the top for steering it by hand and the drain hose with its yellow cap on the left side.',
+      id: 'rear-shell', name: 'Rear body and handles', group: 'shell', layer: 0, delay: 0.03,
+      home: [0, 0, 0], ex: [0, 0.6, -6.0], tag: 'Handles', conf: 'named', src: ['gs-marvel-pics'],
+      desc: 'The black rear body: the panels behind the silver pillars, whose lower edge slants down towards the front, the gunmetal housing under that edge over the rear wheels, and the rear face. The two grips at the top corners stick out past the sides (they show in Gausium\'s front view); the drain hose with its yellow cap runs down the right side, and a latch pocket with a yellow lever sits on the left.',
       specs: [['Waste tank behind it', '70 L']],
       build(b) {
-        b.profile([[-5.2, 1.3, 0.4], [-1.0, 1.3, 0], [-1.0, 2.1, 0], [-4.5, 8.7, 0], [-4.5, 10.75, 0], [-4.95, 10.75, 0.35], [-5.2, 9.6, 0.5]], 5.6, { axis: 'x', m: 'shellDk', bevel: 0.45, bs: 4 });
-        // the push handle
-        for (const s of [-1, 1]) b.box(0.32, 0.5, 0.9, { m: 'trim', r: 0.1, at: [s * 2.25, 10.3, -5.3] });
-        b.cyl(0.12, 0.12, 4.8, { m: 'trim', rot: [0, 0, PI / 2], at: [0, 10.45, -5.75], seg: 16 });
-        for (const s of [-1, 1]) b.cyl(0.15, 0.15, 1.0, { m: 'rubber', rot: [0, 0, PI / 2], at: [s * 1.55, 10.45, -5.75], seg: 16, e: false });
-        b.box(1.3, 0.45, 0.6, { m: 'trim', r: 0.12, at: [0, 10.55, -5.35] }); // the control pod
-        // the drain hose on the left side, with its yellow cap
-        b.cyl(0.12, 0.12, 4.6, { m: 'rubber', at: [2.88, 5.9, -3.15], rot: [0.42, 0, 0], seg: 14 });
-        b.cyl(0.17, 0.17, 0.32, { m: 'yellow', at: [2.88, 8.0, -2.27], rot: [0.42, 0, 0], seg: 18 });
-        b.box(0.12, 0.6, 0.35, { m: 'yellow', r: 0.06, at: [-2.82, 7.3, -2.2], e: false }); // the latch on the right
+        b.skin(body, body.rowsFn(YD1, TOP - 0.005, (y) => [sideT(y, ZP), 1 - sideT(y, ZP)]), { m: 'shellDk', ...SKIN });
+        b.skin(body, body.rowsFn(YD0, YD1, (y) => [sideT(y, ZP), sideT(y, zDiag(y))]), { m: 'shellDk', ...SKIN });
+        b.skin(body, body.rowsFn(YD0, YD1, (y) => [1 - sideT(y, zDiag(y)), 1 - sideT(y, ZP)]), { m: 'shellDk', ...SKIN });
+        b.skin(body, body.rowsFn(BASE + 0.06, YD1, (y) => [sideT(y, zDiag(y)), 1 - sideT(y, zDiag(y))]), { m: { k: 'shell', id: 'gunmetal', color: 0x585e65, metalness: 0.45 }, ...SKIN });
+        b.box(0.05, 0.05, 4.4, { m: 'trim', at: [3.05, 6.6, -2.2], e: false }); // the seam between the upper and lower side panels
+        b.box(0.05, 0.05, 4.4, { m: 'trim', at: [-3.05, 6.6, -2.2], e: false });
+        // the grips at the rear top corners
+        const ear = P2('ear_r', 'ear_l');
+        for (const sd of [-1, 1]) {
+          b.at([sd * (ear.cx - 0.05), ear.cy, -4.95], () => {
+            b.box(0.42, ear.h, 1.25, { m: 'trim', r: 0.12, rot: [0, sd * 0.35, 0] });
+            b.box(0.06, ear.h * 0.45, 0.6, { m: 'glass', r: 0.02, at: [sd * 0.2, 0, 0.1], rot: [0, sd * 0.35, 0], e: false });
+          });
+        }
+        b.cyl(0.11, 0.11, 5.2, { m: 'trim', rot: [0, 0, PI / 2], at: [0, ear.cy + 0.15, -5.3], seg: 16 }); // the bar between them
+        b.cyl(0.14, 0.14, 0.9, { m: 'rubber', rot: [0, 0, PI / 2], at: [0, ear.cy + 0.15, -5.3], seg: 16, e: false });
+        // the drain hose down the right side, from its yellow cap near the pillar to the rear bottom
+        const top = body.place(8.6, { z: -0.1, side: -1, off: 0.1 }), bot = body.place(4.3, { z: -4.0, side: -1, off: 0.1 });
+        const dz = top.at[2] - bot.at[2], dy = top.at[1] - bot.at[1];
+        b.at([(top.at[0] + bot.at[0]) / 2, (top.at[1] + bot.at[1]) / 2, (top.at[2] + bot.at[2]) / 2], () => b.cyl(0.1, 0.1, Math.hypot(dz, dy), { m: 'rubber', seg: 14 }), [Math.atan2(dz, dy), 0, 0]);
+        b.at(top.at, () => b.cyl(0.15, 0.15, 0.36, { m: 'yellow', seg: 18 }), [Math.atan2(dz, dy), 0, 0]);
+        // the latch pocket on the left side
+        b.on(body.place(6.5, { z: -2.4, side: 1, off: 0 }), () => { b.box(0.5, 0.75, 0.05, { m: 'trim', r: 0.04 }); b.box(0.22, 0.42, 0.08, { m: 'yellow', r: 0.06, at: [0, -0.05, 0.03] }); });
+        // a door with a yellow tag in the housing, over each rear wheel
+        for (const sd of [-1, 1]) b.on(body.place(3.0, { z: -3.0, side: sd, off: 0.02 }), () => { b.box(1.1, 1.3, 0.03, { m: 'graphite', r: 0.03, e: false }); b.box(0.1, 0.22, 0.04, { m: 'yellow', at: [-0.4, 0.3, 0.02], e: false }); });
       },
     },
-    ...[-1, 1].map((s) => ({
-      id: s > 0 ? 'side-shell-l' : 'side-shell-r', name: s > 0 ? 'Left side shell' : 'Right side shell',
+    ...[-1, 1].map((sd) => ({
+      id: sd > 0 ? 'side-shell-l' : 'side-shell-r', name: sd > 0 ? 'Left silver pillar' : 'Right silver pillar',
       group: 'shell', layer: 0, delay: 0.06,
-      home: [s * 2.3, 0, 0], ex: [s * 4.6, 0.6, 0], tag: 'Silver side', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'A silver side of the tower: rounded at the shoulder, flat at the front where it frames the black panel, and slanting back to the black rear body. The black wedge high on the side and the recessed panel on its front are part of it.',
+      home: [0, 0, 0], ex: [sd * 4.4, 0.6, 0.4], tag: 'Silver side', conf: 'named', src: ['gs-marvel-pics'],
+      desc: 'A silver pillar: it frames the black front panel, wraps round the front corner and ends a quarter of the way back along the side, from the base up over the shoulder. Its inner edge follows the dark front regions traced in Gausium\'s front view; the body narrows from 708 mm at the bottom to the shoulders.',
       specs: [['Width', '699 mm overall']],
       build(b) {
-        b.profile([[-1.3, 2.1, 0.2], [3.75, 2.1, 0.25], [3.75, 9.6, 0.5], [3.3, 10.92, 1.3], [1.6, 11.12, 0.4], [-4.55, 11.0, 0.45], [-4.55, 8.7, 0.3]], 1.3, { axis: 'x', m: 'shell', bevel: 0.55, bs: 5, cs: 14 });
-        b.box(0.5, 1.2, 0.08, { m: 'graphite', r: 0.04, at: [s * 0.15, 4.9, 3.76], e: false }); // the recessed panel on the front
-        b.box(0.08, 1.0, 0.7, { m: 'graphite', r: 0.04, at: [s * 0.66, 5.4, -0.6], e: false }); // the side access panel
-        b.box(0.5, 0.6, 1.0, { m: 'trim', r: 0.1, at: [s * 0.78, 9.1, 2.3], rot: [0.5, 0, 0] }); // the black wedge
-        b.box(0.04, 0.05, 6.8, { m: 'graphite', at: [s * 0.66, 7.95, 0.0], e: false }); // the seam
+        b.skin(body, body.rowsFn(BASE + 0.06, TOP - 0.005, (y) => {
+          const tIn = body.tAtX(y, sd * xIn(y)), tOut = sideT(y, ZP);
+          return sd > 0 ? [tIn, tOut] : [-tOut, tIn];
+        }), { m: 'shell', ...SKIN });
+        // the recessed panel on its corner, and the screws down it
+        const spn = P2('side_panel_r', 'side_panel_l');
+        b.on(body.place(spn.cy, { x: sd * spn.cx, off: 0.01 }), () => { b.box(spn.w + 0.04, spn.h + 0.04, 0.02, { m: 'trim', r: 0.07, e: false }); b.box(spn.w, spn.h, 0.035, { m: { k: 'shell', id: 'pale', color: 0x9aa1a8 }, r: 0.06, e: false }); });
+        for (const y of [3.2, 5.0, 7.2, 9.0]) b.on(body.place(y, { z: ZP + 0.25, side: sd, off: 0.01 }), () => b.cyl(0.04, 0.04, 0.03, { m: 'trim', rot: [PI / 2, 0, 0], seg: 10, e: false }));
+        // the small yellow marker low on the flare
+        const mk = P2('marker_r', 'marker_l');
+        b.on(body.place(mk.cy, { x: sd * mk.cx, off: 0.01 }), () => b.box(mk.w, mk.h, 0.03, { m: 'yellow', e: false }));
       },
     })),
     {
-      id: 'bumper', name: 'Base and front bumper', group: 'shell', layer: 0, delay: 0.1,
-      home: [0, 1.65, 0], ex: [0, -0.5, 6.2], tag: 'Contact', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'The wide silver base the tower stands on, with the black bumper strip and two yellow sensor marks across its front. Contact sensing here is inferred: the sources reached do not list it.',
+      id: 'bumper', name: 'Base and lower front', group: 'shell', layer: 0, delay: 0.1,
+      home: [0, 0, 0], ex: [0, -0.5, 5.6], tag: 'Contact', conf: 'named', src: ['gs-marvel-pics'],
+      desc: 'The silver base the tower stands on, jutting out at the front, with the grey corner pads and the bar with two yellow sensor marks across its front; above it the dark recess and the silver band under the carbon panel. All traced from Gausium\'s front view. Contact sensing here is inferred.',
       specs: [['Min. pass width', '850 mm']],
       build(b) {
-        b.profile([[-3.4, -4.95, 0.7], [3.4, -4.95, 0.7], [3.45, 3.6, 1.2], [2.6, 4.75, 0.7], [-2.6, 4.75, 0.7], [-3.45, 3.6, 1.2]], 1.0, { axis: 'y', m: 'shell', bevel: 0.3, bs: 4 });
-        b.box(4.8, 0.36, 0.16, { m: 'trim', r: 0.06, at: [0, 0.2, 4.7], e: false }); // the bumper strip
-        for (const x of [-0.9, 0.9]) b.cyl(0.07, 0.07, 0.05, { m: 'yellow', rot: [PI / 2, 0, 0], at: [x, 0.2, 4.8], seg: 14, e: false });
+        b.skin(body, body.rowsFn(body.y0, BASE + 0.06, () => [0, 1]), { m: 'shell', ...SKIN, cols: 72 });
+        b.skin(body, body.rowsFn(recessTop - 0.02, panelBot + 0.02, (y) => [-body.tAtX(y, xIn(y)), body.tAtX(y, xIn(y))]), { m: 'shell', ...SKIN });
+        b.skin(body, body.rowsFront(RECESS, { from: BASE + 0.06 }), { m: { k: 'shellDk', id: 'recess', color: 0x34383d }, ...SKIN, off: -0.03 });
+        const pad = P2('pad_r', 'pad_l');
+        for (const sd of [-1, 1]) b.at([sd * pad.cx, pad.cy, 3.98], () => b.box(pad.w, pad.h, 0.55, { m: 'graphite', r: 0.08 }));
+        const tr = M('tray');
+        b.at([tr.cx, tr.cy, 4.62], () => b.box(tr.w, tr.h, 0.25, { m: 'graphite', r: 0.06 }));
+        for (const n of ['dot_r', 'dot_l']) { const d = M(n); b.at([d.cx, d.cy, 4.76], () => b.cyl(d.w / 2, d.w / 2, 0.04, { m: 'yellow', rot: [PI / 2, 0, 0], seg: 14, e: false })); }
+        // the corner guide rollers out front of the base
+        const kn = P2('knob_r', 'knob_l');
+        for (const sd of [-1, 1]) b.at([sd * kn.cx, kn.cy - 0.05, 4.2], () => { b.cyl(kn.w / 2, kn.w / 2, kn.h * 0.8, { m: 'trim', seg: 18 }); b.cyl(kn.w / 3, kn.w / 3, kn.h * 0.9, { m: 'steel', seg: 12, e: false }); });
       },
     },
 
     // ───────────── Controls ─────────────
     {
       id: 'e-stop', name: 'Emergency stop', group: 'ui', layer: 0, delay: 0.1,
-      home: [0, 11.48, 3.05], ex: [0, 4.6, 1.4], tag: 'Stop', conf: 'named', src: ['gs-marvel-pics'],
-      desc: 'The red stop button at the front of the lid.',
+      home: [0, TOP + 0.09, 1.5], ex: [0, 4.6, 0.4], tag: 'Stop', conf: 'named', src: ['gs-marvel-pics'],
+      desc: 'The red stop button on the lid, just behind the visor (38 mm tall in Gausium\'s front view).',
       specs: [['Action', 'Cuts drive + brush power']],
-      build(b) { L.eStop(b, { r: 0.3 }); },
+      build(b) {
+        const e = M('e_stop'), r = e.w / 2, h = e.y1 - (TOP + 0.09);
+        b.cyl(r * 1.1, r * 1.2, h * 0.3, { m: 'trim', at: [0, h * 0.15, 0], seg: 28 });
+        b.cyl(r, r * 0.98, h * 0.55, { m: 'red', at: [0, h * 0.58, 0], seg: 28 });
+        b.sph(r * 0.98, { m: 'red', cap: PI / 2, at: [0, h * 0.85, 0], s: 1, seg: 24 }).scale.set(1, 0.3, 1);
+      },
     },
 
     // ───────────── Cleaning head ─────────────
     ...[-1, 1].map((s) => ({
       id: s < 0 ? 'side-brush-r' : 'side-brush-l', name: s < 0 ? 'Right side brush' : 'Left side brush',
       group: 'clean', layer: 3, delay: 0.1,
-      home: [s * 2.75, 0.32, 4.3], ex: [s * 4.0, -2.0, 4.0], tag: '840 mm', conf: 'confirmed', src: ['gs-marvel-br', 'gs-marvel-pics'],
+      home: [s * 2.72, 0.95, 4.35], ex: [s * 4.0, -2.0, 4.0], tag: '840 mm', conf: 'confirmed', src: ['gs-marvel-br', 'gs-marvel-pics'],
       desc: 'One of the two large side brushes at the front corners (Gausium\'s patented dual side-brush system). They sweep fine dust and large debris into the path in one pass.',
       specs: [['Sweeping width', '840 mm']],
-      build(b) { L.discBrush(b, { r: 1.3, hub: 0.45, n: 40 }); },
+      build(b) { L.discBrush(b, { r: 1.3, hub: 0.45, n: 40, droop: 0.42 }); },
     })),
     {
       id: 'main-broom', name: 'Main sweeping brush', group: 'clean', layer: 3, delay: 0.04,
@@ -172,7 +258,7 @@ export default {
     },
     {
       id: 'dust-mop', name: 'Dust mop', group: 'clean', layer: 3, delay: 0.08,
-      home: [0, 0.12, 5.0], ex: [0, -2.4, 4.4], tag: '760 mm', conf: 'named', src: ['gs-marvel', 'gs-marvel-pics'],
+      home: [0, 0.3, 5.05], ex: [0, -2.4, 4.4], tag: '760 mm', conf: 'named', src: ['gs-marvel', 'gs-marvel-pics'],
       desc: 'The blue dust-mopping pad across the front, 760 mm wide.',
       specs: [['Dust mopping width', '760 mm'], ['Max. dust mopping', '3,830 m²/h (theoretical)']],
       build(b) {
@@ -272,10 +358,15 @@ export default {
     // ───────────── Sensing ─────────────
     {
       id: 'lidar-3d', name: '3D LiDAR', group: 'sense', layer: 0, delay: 0.02,
-      home: [0, 10.55, 3.9], ex: [0, 4.6, 3.4], tag: 'Mapping', conf: 'confirmed', src: ['gs-marvel-br', 'gs-marvel-pics'],
+      home: [box(F, 'dome').cx, box(F, 'dome').cy, 4.06], ex: [0, 4.6, 3.4], tag: 'Mapping', conf: 'confirmed', src: ['gs-marvel-br', 'gs-marvel-pics'],
       desc: 'The round sensor dome at the front of the black visor. Gausium names a 3D LiDAR for high-precision mapping, navigation and positioning; that it is this dome is our reading of the picture.',
       specs: [['Use', 'Mapping · navigation · positioning']],
-      build(b) { b.cyl(0.42, 0.46, 0.4, { m: 'trim', rot: [PI / 2, 0, 0], seg: 28 }); b.sph(0.32, { m: 'lens', cap: PI / 2, rot: [PI / 2, 0, 0], at: [0, 0, 0.18], seg: 24 }); },
+      build(b) {
+        const ring = box(F, 'dome_ring'), dome = box(F, 'dome');
+        b.cyl(ring.w / 2, ring.w / 2 + 0.02, 0.12, { m: 'trim', rot: [PI / 2 - 0.35, 0, 0], at: [0, ring.cy - dome.cy, 0], seg: 32 });
+        b.sph(dome.w / 2, { m: 'lens', seg: 28, at: [0, 0, 0.12] });
+        b.cyl(dome.w * 0.18, dome.w * 0.18, 0.04, { m: 'glass', rot: [PI / 2, 0, 0], at: [0, 0, 0.12 + dome.w / 2], seg: 14, e: false });
+      },
     },
     {
       id: 'cliff-sensors', name: 'Anti-drop sensors', group: 'sense', layer: 1, delay: 0.1,
@@ -286,7 +377,7 @@ export default {
     },
     {
       id: 'front-camera', name: 'Front camera', group: 'sense', layer: 1, delay: 0.06,
-      home: [0, 8.95, 3.88], ex: [0, 2.4, 5.0], tag: 'Vision', conf: 'inferred', src: ['gs-marvel-img'],
+      home: [box(F, 'slot').cx - 0.35, box(F, 'slot').cy, 3.84], ex: [0, 2.4, 5.0], tag: 'Vision', conf: 'inferred', src: ['gs-marvel-img'],
       desc: 'A camera behind the dark slot at the top of the front panel. What sits behind the slot is not stated; a camera is our reading.',
       specs: [['Listed', 'Not in the sources reached']],
       build(b) { L.camera(b, { w: 0.6, h: 0.3, d: 0.25, lens: 0.1 }); },
