@@ -156,10 +156,10 @@ dl.kv { display: grid; grid-template-columns: auto 1fr; gap: 7px 14px; font-size
 dl.kv dt { color: var(--muted); }
 dl.kv dd { font-family: var(--mono); font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 dl.kv dd.long { grid-column: 1 / -1; text-align: left; margin: -4px 0 3px; color: var(--text); }
-.kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
 .kpi { padding: 9px 10px 10px; border: 1px solid var(--line); background: var(--fill); border-top: 2px solid var(--accent); }
 .kpi small { display: block; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
-.kpi b { display: block; margin-top: 5px; font: 700 18px/1.1 var(--display); color: var(--title); white-space: nowrap; }
+.kpi b { display: block; margin-top: 5px; font: 700 18px/1.1 var(--display); color: var(--title); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .conf { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 8px 10px; border: 1px solid var(--line); background: var(--fill); font-size: 13px; }
 .bars { display: inline-flex; gap: 3px; }
 .bars b { width: 14px; height: 6px; background: var(--line-strong); }

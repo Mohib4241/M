@@ -174,3 +174,27 @@ export function chargePads(b, { w = 1.4 } = {}) {
   for (const s of [-1, 1]) b.box(0.32, 0.26, 0.06, { m: 'copper', at: [s * w * 0.28, 0, -0.1], e: false });
   b.box(0.12, 0.12, 0.04, { m: 'accent', at: [0, 0, -0.09], e: false });
 }
+
+/** A sweeper's disc brush: a hub with long bristle bundles splayed out and down, in three rings. */
+export function discBrush(b, { r = 1.6, hub = 0.5, n = 40, m = 'bristle', droop = 0.26 } = {}) {
+  b.cyl(hub, hub * 1.06, 0.2, { m: 'dark', seg: 32 });
+  b.cyl(hub * 0.42, hub * 0.42, 0.34, { m: 'steel', at: [0, 0.2, 0], seg: 18, e: false });
+  for (let k = 0; k < 3; k++) {
+    const len = (r - hub * 0.8) * (1 - k * 0.07);
+    const g = new THREE.CylinderGeometry(0.016, 0.042, len, 5, 1);
+    g.rotateZ(-PI / 2);
+    g.translate(len / 2, 0, 0);
+    b.radial(g, n, hub * 0.82, { axis: 'y', m, at: [0, -0.07 - k * 0.035, 0], phase: (k / 3) * (PI * 2) / n, tilt: -(droop + k * 0.07), e: false });
+  }
+}
+
+/** A wheel with a moulded tyre and a solid hub disc. Axis along X; `side` is -1 or +1. */
+export function tyreWheel(b, { r = 1.2, w = 0.55, side = 1, hubM = 'hubGrey', motor = true } = {}) {
+  const h = w / 2, ri = r * 0.68;
+  const tyre = [[ri, -h * 0.9], [r - 0.12, -h], [r - 0.035, -h * 0.78], [r, -h * 0.35], [r, h * 0.35], [r - 0.035, h * 0.78], [r - 0.12, h], [ri, h * 0.9]];
+  b.lathe(tyre, { m: 'rubber', rot: [0, 0, PI / 2], seg: 44 });
+  const hubP = [[0.001, -h * 0.82], [ri * 0.55, -h * 0.84], [ri * 0.96, -h * 0.74], [ri * 1.01, -h * 0.5], [ri * 1.01, h * 0.5], [ri * 0.96, h * 0.74], [ri * 0.55, h * 0.84], [0.001, h * 0.82]];
+  b.lathe(hubP, { m: hubM, rot: [0, 0, PI / 2], seg: 40 });
+  b.cyl(ri * 0.2, ri * 0.2, w * 0.9, { m: 'dark', rot: [0, 0, PI / 2], seg: 18, e: false });
+  if (motor) b.cyl(ri * 0.62, ri * 0.62, 0.4, { m: 'dark', rot: [0, 0, PI / 2], at: [-side * (h + 0.2), 0, 0], seg: 22 });
+}

@@ -7,7 +7,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Builder } from './kit.js';
+import { Builder, mergePart } from './kit.js';
 
 // Parts open in four waves, outermost first: shell → subsystems → internals → frame.
 const LAYER_START = [0, 0.18, 0.36, 0.54];
@@ -94,7 +94,9 @@ export class Stage {
   // ───────────────────────── setup ─────────────────────────
   _initRenderer() {
     const r = (this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, powerPreference: 'high-performance' }));
-    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.maxDpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.dpr = this.maxDpr;
+    r.setPixelRatio(this.dpr);
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.0;
     r.shadowMap.enabled = true;
@@ -450,6 +452,7 @@ export class Stage {
     for (const pd of def.parts) {
       const b = new Builder(ctx);
       pd.build(b);
+      mergePart(b, mergeGeometries);
       const root = new THREE.Group();
       root.add(b.group);
       root.position.set(...pd.home);
@@ -476,6 +479,12 @@ export class Stage {
       p.radius = box.getSize(new THREE.Vector3()).length() / 2;
       p.homeWorld = p.root.localToWorld(p.anchorLocal.clone());
       p.minRel = box.min.y - this.baseY; // lowest point relative to the robot origin
+      // the part's box corners relative to its own origin, so the camera can frame its true size
+      const o = p.root.getWorldPosition(new THREE.Vector3());
+      p.corners = [];
+      for (let k = 0; k < 8; k++) {
+        p.corners.push(new THREE.Vector3(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z).sub(o));
+      }
       p.castOn = true;
     }
     this._floorY = 0;
@@ -799,6 +808,7 @@ export class Stage {
     const w = Math.max(2, host.clientWidth), h = Math.max(2, host.clientHeight);
     this.W = w; this.H = h;
     this.renderer.setSize(w, h, false);
+    this.composer.setPixelRatio(this.renderer.getPixelRatio());
     this.composer.setSize(w, h);
     this.bloom.setSize(w, h);
     this.camera.aspect = w / h;
@@ -819,34 +829,67 @@ export class Stage {
   // ───────────────────────── frame ─────────────────────────
   _frame(tms) {
     const now = tms / 1000;
-    const dt = Math.min(0.05, this._last ? now - this._last : 0.016);
+    const raw = this._last ? now - this._last : 0.016;
+    const dt = Math.min(0.05, raw);
     this._last = now;
     this.time += dt;
-    this._adapt(dt);
+    this._adapt(raw);
     this._update(dt);
+    this._shadows();
     if (this.look === 'holo' && this.opts.bloom) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
     this.emit('frame', dt);
   }
 
-  // Switch off glow and drop to 1x pixel ratio if the device can't hold ~26 fps.
-  _adapt(dt) {
-    if (window.__catalogueNoAdapt || this._adapted) return;
-    this._perf = this._perf || { t: 0, n: 0, sum: 0 };
-    const P = this._perf;
-    P.t += dt;
-    if (P.t < 1.2) return; // skip start-up and intro hitches
-    P.n++; P.sum += dt;
-    if (P.t > 4.5) {
-      this._adapted = true;
-      const fps = P.n / P.sum;
-      if (fps < 26) {
-        this.opts.bloom = false;
-        if (this.look === 'studio') { this.key.shadow.map?.dispose(); this.key.shadow.map = null; this.key.shadow.mapSize.set(1024, 1024); }
-        this.renderer.setPixelRatio(1);
-        this._onResize();
-        this.emit('quality', fps);
-      }
+  // The shadow map is redrawn only when something that casts a shadow has moved: a still robot under an
+  // orbiting camera keeps the shadow it has. Spinning brushes refresh it a few times a second.
+  _shadows() {
+    const sm = this.renderer.shadowMap;
+    sm.autoUpdate = false;
+    let sig = this.robot ? this.robot.position.y * 7.1 + this.robot.rotation.x * 3.3 + this.robot.rotation.z * 5.7 : 0;
+    for (let i = 0; i < this.parts.length; i++) {
+      const r = this.parts[i].root;
+      sig += (r.position.x * 1.31 + r.position.y * 1.73 + r.position.z * 2.11 + r.rotation.x + r.rotation.y * 0.7 + r.rotation.z * 0.3 + (r.visible ? 0 : 0.37)) * (i + 1);
+      if (this.parts[i].castOn === false) sig += 0.011 * (i + 1);
+    }
+    if (this.studio) sig += this.studio.position.y * 0.9;
+    this._shF = (this._shF || 0) + 1;
+    if (sig !== this._shSig || this._shF >= 12 || this._shDirty) {
+      this._shSig = sig; this._shF = 0; this._shDirty = false;
+      sm.needsUpdate = true;
+    }
+  }
+
+  // Keep the view smooth: every second, compare the frame rate with the target and step the rendering
+  // resolution down (or back up when there is room), and switch the glow off if even that is not enough.
+  _adapt(raw) {
+    if (window.__catalogueNoAdapt) return;
+    const P = (this._perf ||= { warm: 0, n: 0, sum: 0, good: 0, block: 0, ups: 0 });
+    if (raw > 0.25) { P.n = 0; P.sum = 0; return; } // a hitch or a hidden tab, not the steady frame rate
+    P.warm += raw;
+    if (P.warm < 1.5) return; // skip start-up and the intro
+    P.n++; P.sum += raw;
+    if (P.sum < 1) return;
+    const fps = P.n / P.sum;
+    P.n = 0; P.sum = 0;
+    if (P.block > 0) P.block--;
+    const max = this.maxDpr, min = 0.75;
+    let pr = this.dpr;
+    if (fps < 42 && pr > min) {
+      pr = Math.max(min, +(pr - (fps < 26 ? 0.5 : 0.25)).toFixed(2));
+      P.good = 0;
+      if (P.justUp) P.block = 30; // stepping up did not hold: stay here a while
+    } else if (fps < 30 && this.opts.bloom && this.look === 'holo') {
+      this.opts.bloom = false;
+      this.emit('quality', fps);
+    } else if (fps > 55 && pr < max && !P.block) {
+      if (++P.good >= 4) { pr = Math.min(max, +(pr + 0.25).toFixed(2)); P.good = 0; P.justUp = 2; }
+    } else P.good = 0;
+    if (P.justUp && pr === this.dpr) P.justUp--;
+    if (pr !== this.dpr) {
+      this.dpr = pr;
+      this.renderer.setPixelRatio(pr);
+      this._onResize();
     }
   }
 
@@ -916,8 +959,13 @@ export class Stage {
       for (const r of p.b.records) {
         const f = r.shell ? 1 - (studio ? 0.58 : 0.66) * xr : 1;
         const o = r.base * f * p.dim;
-        r.mat.opacity = o;
-        r.mat.depthWrite = o > 0.62 && !r.glass;
+        // Nearly opaque surfaces draw as solid: the solid pass is sorted front to back and skips hidden
+        // pixels, where the see-through pass has to blend every layer.
+        const solid = o >= 0.95 && !r.glass;
+        const op = solid ? 1 : o;
+        if (r.mat.opacity !== op) r.mat.opacity = op;
+        if (r.mat.transparent === solid) { r.mat.transparent = !solid; r.mat.needsUpdate = true; }
+        r.mat.depthWrite = op > 0.62 && !r.glass;
         if (p.glow > 0.01) r.mat.emissive.copy(r.emissive).lerp(this.accent, p.glow * (studio ? 0.2 : 0.5) * pulse);
         else r.mat.emissive.copy(r.emissive);
         if (r.ei === undefined) r.ei = r.mat.emissiveIntensity;
@@ -933,12 +981,17 @@ export class Stage {
         if (em.userData.studio) {
           // outline only the selected, hovered or pointed-at part
           em.opacity = em.userData.base * lit * p.dim;
+          const vis = em.opacity > 0.01;
+          if (em.userData.lines.visible !== vis) em.userData.lines.visible = vis;
+          if (!vis) continue;
           if (ak > 0.01 && al) em.color.copy(em.userData.col).lerp(al.color, ak * 0.9);
           else if (em.userData.col) em.color.copy(em.userData.col);
           continue;
         }
         const boost = 1 + lit * 0.9;
         em.opacity = Math.min(1, em.userData.base * p.dim * boost);
+        const vis = em.opacity > 0.01;
+        if (em.userData.lines.visible !== vis) em.userData.lines.visible = vis;
         em.color.copy(em.userData.col).lerp(WHITE, p.glow * 0.55);
         if (ak > 0.01 && al) em.color.lerp(al.color, ak * 0.85);
       }
@@ -1039,34 +1092,48 @@ export class Stage {
     }
   }
 
-  // Fit the camera to where the parts actually are right now (or to the filtered group),
-  // using the current view direction, so every open state stays framed.
+  // Fit the camera to where the parts actually are right now (or to the filtered group), using the
+  // current view direction, so every open state stays inside the free area of the screen. Each part
+  // counts with the corners of its box, and the distance is worked out per corner with perspective, so a
+  // long panel near the camera is not cropped.
   _fit(only = null) {
     const c = this.cam, e = this.e;
-    const f = new THREE.Vector3(Math.sin(c.azC) * Math.cos(c.elC), Math.sin(c.elC), Math.cos(c.azC) * Math.cos(c.elC));
-    const right = new THREE.Vector3(0, 1, 0).cross(f).normalize();
-    const up = new THREE.Vector3().crossVectors(f, right);
-    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
+    const f = _f.set(Math.sin(c.azC) * Math.cos(c.elC), Math.sin(c.elC), Math.cos(c.azC) * Math.cos(c.elC));
+    const right = _r.set(0, 1, 0).cross(f).normalize();
+    const up = _u.crossVectors(f, right);
     const gf = this.groupFilter;
+    const P = (this._fitPts ||= []);
+    let n = 0;
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
     for (const p of this.parts) {
       if (only ? !only.includes(p) : gf && p.def.group !== gf) continue;
-      const w = this.anchorWorld(p);
-      const r = p.radius * 0.55;
-      const x = w.dot(right), y = w.dot(up), z = w.dot(f);
-      minX = Math.min(minX, x - r); maxX = Math.max(maxX, x + r);
-      minY = Math.min(minY, y - r); maxY = Math.max(maxY, y + r);
-      minZ = Math.min(minZ, z - r); maxZ = Math.max(maxZ, z + r);
+      if (!p.corners) continue;
+      const o = p.root.getWorldPosition(_o);
+      for (const k of p.corners) {
+        _w.copy(k).add(o);
+        const x = _w.dot(right), y = _w.dot(up), z = _w.dot(f);
+        const q = P[n] || (P[n] = [0, 0, 0]);
+        q[0] = x; q[1] = y; q[2] = z; n++;
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+      }
     }
+    if (!n) return { center: new THREE.Vector3(0, 5, 0), dist: 20 };
     const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2, cz = (minZ + maxZ) / 2;
     const center = right.clone().multiplyScalar(cx).addScaledVector(up, cy).addScaledVector(f, cz);
     const tanV = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
     const fh = Math.max(0.2, (this.H - this.insets.bottom) / this.H);
     const fw = Math.max(0.2, (this.W - this.insets.left - this.insets.right) / this.W);
-    const tanVe = tanV * fh;
-    const tanHe = tanV * (this.W / this.H) * fw;
-    const margin = lerp(1.38, 1.14, smooth(e, 0, 0.6));
-    const need = Math.max(((maxY - minY) / 2) / tanVe, ((maxX - minX) / 2) / tanHe) * margin + (maxZ - cz);
-    return { center, dist: clamp(need, 9, 80) };
+    const margin = lerp(1.3, 1.1, smooth(e, 0, 0.6));
+    const tanVe = (tanV * fh) / margin;
+    const tanHe = (tanV * (this.W / this.H) * fw) / margin;
+    let need = 0;
+    for (let i = 0; i < n; i++) {
+      const q = P[i], dz = q[2] - cz;
+      need = Math.max(need, Math.abs(q[0] - cx) / tanHe + dz, Math.abs(q[1] - cy) / tanVe + dz);
+    }
+    return { center, dist: clamp(need, 9, 110) };
   }
 
   snapCamera() {
@@ -1128,3 +1195,4 @@ export class Stage {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _o = new THREE.Vector3(), _w = new THREE.Vector3();

@@ -100,7 +100,7 @@ function buildCallouts() {
     const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
     dot.setAttribute('r', '2.6'); dot.setAttribute('fill', c);
     $('#leaders').append(path, dot);
-    callouts.set(p.id, { el, path, dot, w: 0 });
+    callouts.set(p.id, { el, path, dot, w: 0, on: false, sel: false, alert: false });
   }
 }
 
@@ -116,10 +116,17 @@ function kv(rows) { return rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd${String(v
 
 // Three headline numbers from a robot's published specs (the number and its unit only).
 function kpiTiles(d) {
-  const num = (v) => { const m = String(v).match(/^[\d.,–-]+(?:\s?[A-Za-zµ²/%]+)?/); return m ? m[0].trim() : v; };
+  // the first number and its unit, or the number after `prefer` ("Scrub 600 · sweep 840 · mop 760 mm" → "840 mm")
+  const num = (v, prefer) => {
+    const s = String(v);
+    const p = prefer && s.match(new RegExp(prefer + '\\s*≥?([\\d.,–-]*\\d)\\s*([A-Za-zµ²/%]+)?', 'i'));
+    if (p) return `${p[1]} ${p[2] || (s.match(/([A-Za-zµ²]+)\s*$/) || [])[1] || ''}`.trim();
+    const m = s.match(/[\d.,–-]*\d(?:\s?[A-Za-zµ²/%]+)?/);
+    return m ? m[0].trim() : s;
+  };
   const pick = (label) => d.stats.find(([k]) => k === label)?.[1];
-  const tiles = [['Weight', 'Weight'], ['Cleaning width', 'Sweep'], ['Runtime', 'Runtime']]
-    .map(([k, name]) => (pick(k) ? `<div class="kpi"><small>${esc(name)}</small><b>${esc(num(pick(k)))}</b></div>` : '')).join('');
+  const tiles = [['Weight', 'Weight'], ['Cleaning width', 'Sweep', 'sweep'], ['Runtime', 'Runtime']]
+    .map(([k, name, pref]) => (pick(k) ? `<div class="kpi"><small>${esc(name)}</small><b>${esc(num(pick(k), pref))}</b></div>` : '')).join('');
   return tiles ? `<div class="kpis" aria-hidden="true">${tiles}</div>` : '';
 }
 
@@ -307,16 +314,28 @@ function hint(show) { $('#hint').classList.toggle('gone', !show); }
 const tmp = { x: 0, y: 0, z: 0 };
 const GAP = 25;
 
+const MIN_GAP = 21; // a label is about 20 px tall: closer than this they overlap
+let lastPct = -1, lastStage = '';
+
 stage.on('frame', () => {
   const e = stage.e;
-  $('#pct').textContent = Math.round(e * 100) + '%';
-  $('#stage-name').textContent = stage.stageName();
+  const pct = Math.round(e * 100);
+  if (pct !== lastPct) { lastPct = pct; $('#pct').textContent = pct + '%'; }
+  const sn = stage.stageName();
+  if (sn !== lastStage) { lastStage = sn; $('#stage-name').textContent = sn; }
   if (!sliding) slider.value = stage.eT;
   slider.style.setProperty('--p', slider.value * 100 + '%');
   const on = e < 0.18 ? 0 : e < 0.51 ? 1 : e < 0.83 ? 2 : 3;
   $$('#stops button').forEach((b, i) => b.classList.toggle('on', i === on));
   updateCallouts();
 });
+
+function setOn(c, on) {
+  if (c.on === on) return;
+  c.on = on;
+  for (const n of [c.el, c.path, c.dot]) n.classList.toggle('on', on);
+  if (!on) { c.alert = false; for (const n of [c.el, c.path, c.dot]) n.classList.remove('alert'); }
+}
 
 function updateCallouts() {
   const W = stage.W, H = stage.H;
@@ -336,34 +355,48 @@ function updateCallouts() {
       if (tmp.z < 1) show.push({ p, x: tmp.x, y: tmp.y, sel: isSel || isHov || isAlert, alert: isAlert });
     }
   }
-  const shown = new Set(show.map((s) => s.p.def.id));
-  for (const [id, c] of callouts) {
-    if (!shown.has(id)) {
-      if (c.on) { c.el.classList.remove('on', 'alert'); c.path.classList.remove('on', 'alert'); c.dot.classList.remove('on', 'alert'); c.on = false; }
-    }
-  }
-  if (!show.length) return;
 
-  const Ls = show.filter((s) => s.x < cx).sort((a, b) => a.y - b.y);
-  const Rs = show.filter((s) => s.x >= cx).sort((a, b) => a.y - b.y);
   const banner = stage.alert ? $('#alert-banner') : null; // labels start below the interruption banner
   const top = banner && !banner.hidden ? Math.max(64, banner.offsetHeight + 36) : 64, bottom = H - stage.insets.bottom - 10;
-  const place = (arr, dir) => {
-    let last = top - GAP;
-    for (const it of arr) { it.ly = Math.max(it.y, last + GAP); last = it.ly; }
-    for (let i = arr.length - 1; i >= 0; i--) {
-      const maxY = i === arr.length - 1 ? bottom : arr[i + 1].ly - GAP;
-      arr[i].ly = Math.min(arr[i].ly, maxY);
+  // A column holds only as many labels as fit between the top and the bottom of the view. Past that the
+  // selected and pointed-at parts keep theirs, then the biggest parts, so no label is pushed off screen.
+  const room = Math.max(1, Math.floor((bottom - top) / MIN_GAP) + 1);
+  const fit = (arr) => {
+    if (arr.length > room) {
+      arr.sort((a, b) => (b.sel - a.sel) || (b.p.radius - a.p.radius));
+      arr.length = room;
     }
-    for (let i = 1; i < arr.length; i++) arr[i].ly = Math.max(arr[i].ly, arr[i - 1].ly + GAP * 0.8);
+    return arr.sort((a, b) => a.y - b.y);
+  };
+  const Ls = fit(show.filter((s) => s.x < cx));
+  const Rs = fit(show.filter((s) => s.x >= cx));
+  const shown = new Set([...Ls, ...Rs].map((s) => s.p.def.id));
+  for (const [id, c] of callouts) if (!shown.has(id)) setOn(c, false);
+  if (!shown.size) return;
+
+  // Write the classes first, then read every new width at once, then place: one layout per frame at
+  // most, instead of one forced layout per label.
+  const all = [...Ls, ...Rs];
+  for (const it of all) {
+    const c = callouts.get(it.p.def.id);
+    setOn(c, true);
+    if (c.sel !== it.sel) { c.sel = it.sel; c.el.classList.toggle('sel', it.sel); c.w = 0; }
+    const al = !!it.alert;
+    if (c.alert !== al) { c.alert = al; for (const n of [c.el, c.path, c.dot]) n.classList.toggle('alert', al); c.w = 0; }
+  }
+  for (const it of all) { const c = callouts.get(it.p.def.id); if (!c.w) c.w = c.el.offsetWidth || 120; }
+
+  const place = (arr, dir) => {
+    const n = arr.length;
+    const gap = n > 1 ? Math.max(MIN_GAP, Math.min(GAP, (bottom - top) / (n - 1))) : GAP;
+    let last = top - gap;
+    for (const it of arr) { it.ly = Math.max(it.y, last + gap); last = it.ly; }
+    let next = bottom + gap;
+    for (let i = n - 1; i >= 0; i--) { arr[i].ly = Math.min(arr[i].ly, next - gap); next = arr[i].ly; }
+    for (const it of arr) it.ly = Math.max(top, Math.min(bottom, it.ly));
     for (const it of arr) {
       const c = callouts.get(it.p.def.id);
-      if (!c.on) { c.el.classList.add('on'); c.path.classList.add('on'); c.dot.classList.add('on'); c.on = true; }
-      c.el.classList.toggle('sel', it.sel);
-      c.el.classList.toggle('alert', !!it.alert);
-      c.path.classList.toggle('alert', !!it.alert);
-      c.dot.classList.toggle('alert', !!it.alert);
-      const w = c.el.offsetWidth || 120;
+      const w = c.w;
       let x0, ly, ex, elbow;
       if (wide) {
         // columns hug the edges of the free area so the model keeps the middle
@@ -379,7 +412,7 @@ function updateCallouts() {
         ex = side < 0 ? x0 + w : x0;
         elbow = ex + side * 10;
       }
-      c.el.style.transform = `translate(${x0}px, ${ly}px) translateY(-50%)`;
+      c.el.style.transform = `translate(${x0.toFixed(1)}px, ${ly.toFixed(1)}px) translateY(-50%)`;
       c.path.setAttribute('d', `M${it.x.toFixed(1)} ${it.y.toFixed(1)} L${elbow.toFixed(1)} ${ly.toFixed(1)} L${ex.toFixed(1)} ${ly.toFixed(1)}`);
       c.dot.setAttribute('cx', it.x.toFixed(1)); c.dot.setAttribute('cy', it.y.toFixed(1));
     }

@@ -9,7 +9,7 @@ import { Builder } from '../kit.js';
 import { applyPaint } from './livery.js';
 
 // Drive wheel radius in units, from the wheel builders in each robot's data file
-export const WHEEL_R = { phantas: 0.62, cc1pro: 0.8, omnie: 0.7, marvel: 0.9, mt1: 0.75, mt1max: 0.75 };
+export const WHEEL_R = { phantas: 0.62, cc1pro: 0.8, omnie: 0.7, marvel: 1.15, mt1: 1.18, mt1max: 1.18 };
 // how big each robot is for bumping in the race: about half its width, in units
 export const BUMP_R = { phantas: 2.6, cc1pro: 3.0, omnie: 3.4, marvel: 3.6, mt1: 3.1, mt1max: 3.1 };
 
