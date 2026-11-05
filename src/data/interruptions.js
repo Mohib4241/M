@@ -115,6 +115,46 @@ export const TYPES = [
   },
 ];
 
+// Where each interruption points on the newer robots. The MT1 and MT1 Max are sweepers with no water
+// system: water alarms point at the nearest thing on them, and say so.
+const SWEEPER = (max) => ({
+  estop: { main: ['e-stop'] },
+  'bumper-hit': { main: ['bumper'], rel: ['line-laser'] },
+  battery: { main: ['battery'], rel: ['charge-contacts'] },
+  'waste-tank': { main: ['trash-bin'], fit: 'nearest', note: 'A sweeper has no water tank; the trash bin is the store on it that fills up.' },
+  'dust-bag': { main: ['trash-bin'], fit: 'nearest', note: 'The debris goes into a 35 L bin; no dust bag is listed.' },
+  'sensor-dirty': { main: ['line-laser'], rel: ['depth-cameras'], fit: 'nearest', note: 'No separate floor sensor is listed; the line lasers watch the floor ahead.' },
+  suction: { main: ['filter', 'vacuum-motor'], rel: ['trash-bin'], fit: 'nearest', note: 'On a sweeper the suction runs through the bin and the filter to the fan; a clogged filter is the usual block.' },
+  stuck: { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-2d', 'depth-cameras', 'line-laser'] },
+  'path-blocked': { main: [max ? 'lidar-3d' : 'lidar-2d', 'depth-cameras'], rel: ['line-laser', 'bumper'] },
+  'bumper-stuck': { main: ['bumper'] },
+  cliff: { main: ['line-laser'], fit: 'nearest', note: 'No separate anti-drop sensor is listed; the line lasers find drops ahead.' },
+  'no-recover': { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-2d', 'depth-cameras'] },
+  'pos-lost': { main: max ? ['lidar-3d', 'lidar-2d'] : ['lidar-2d'], rel: ['vslam-camera'] },
+  'front-cam': { main: ['rgb-camera'], rel: ['depth-cameras'] },
+});
+const MORE = {
+  marvel: {
+    estop: { main: ['e-stop'] },
+    'bumper-hit': { main: ['bumper'] },
+    battery: { main: ['battery'], rel: ['charge-contacts'] },
+    'waste-tank': { main: ['recovery-tank'] },
+    'dust-bag': { main: ['hopper'], fit: 'nearest', note: 'The Marvel sweeps into a hopper; no dust bag is listed.' },
+    'sensor-dirty': { main: ['cliff-sensors'] },
+    suction: { main: ['squeegee', 'recovery-tank'], rel: ['vacuum-motor'], fit: 'nearest', note: 'There is no separate suction-pipe part; the squeegee and the waste tank are the two ends of it.' },
+    stuck: { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-3d', 'cliff-sensors'] },
+    'path-blocked': { main: ['lidar-3d'], rel: ['front-camera', 'bumper'] },
+    'bumper-stuck': { main: ['bumper'] },
+    cliff: { main: ['cliff-sensors'] },
+    'no-recover': { main: ['chassis', 'casters'], rel: ['bumper', 'lidar-3d'] },
+    'pos-lost': { main: ['lidar-3d'], rel: ['front-camera'] },
+    'front-cam': { main: ['front-camera'], rel: ['lidar-3d'] },
+  },
+  mt1: SWEEPER(false),
+  mt1max: SWEEPER(true),
+};
+for (const t of TYPES) for (const [rid, map] of Object.entries(MORE)) if (map[t.id]) t.parts[rid] = map[t.id];
+
 /** The part ids an interruption points to on a robot ({ main, rel, fit, note }), or null if none. */
 export function partsFor(type, robotId) {
   const p = type.parts[robotId];

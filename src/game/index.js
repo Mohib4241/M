@@ -1,6 +1,7 @@
-// Race mode. Pick a robot, get five random roads, and race the other robot round each one. Each
-// lap is one circuit of a random road, about a minute long. Points: 3 for winning a lap, 1 for
-// second, and 1 bonus point for every 50 grains of dust in the tank. Most points wins.
+// Race mode. Pick a robot, get five random roads, and race every other robot round each one, from a
+// staggered grid with you at the back. Each lap is one circuit of a random road, about a minute long.
+// Points by place (10, 7, 5, 3, 2, 1), and 1 bonus point for every 50 grains of dust in your tank.
+// Most points after five laps wins.
 import { makeRoad } from './track.js';
 import { Race } from './race.js';
 import { RaceScene, createRenderer } from './scene3d.js';
@@ -13,6 +14,7 @@ import { PAINT_KEYS, PAINTS, paintSwatch } from './livery.js';
 import { snapshot } from './interp.js';
 import { TANK_MAX } from './dust.js';
 import { CHARGE_MAX, TIER_AT, tierOf } from './drift.js';
+import { BUMP_R } from './models.js';
 import { attachTouch, wantsTouch, goLandscape, leaveFullscreen } from './touch.js';
 
 export const LAPS = 5;
@@ -38,13 +40,12 @@ export function openRace(defs, hooks = {}) {
   root.hidden = false;
   S = {
     defs, hooks, root,
-    robotId: 'phantas', oppId: 'cc1pro',
+    robotId: Object.keys(defs)[0],
     seed: (Math.random() * 1e9) | 0,
     roads: [], lap: 0, results: [], race: null, scene: null,
     screen: 'robot', paused: false, acc: 0, last: performance.now(), raf: 0,
-    audio: new GameAudio(), gov: new QualityGovernor({ mode: savedMode() }), paint: savedPaint(), snap: { p: {}, a: {}, ok: false }, ema: 0, fpsT: 0, showFps: false, sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
+    audio: new GameAudio(), gov: new QualityGovernor({ mode: savedMode() }), paint: savedPaint(), snap: { p: {}, o: [], ok: false }, ema: 0, fpsT: 0, showFps: false, sound: true, timers: [], detach: null, mapBg: null, bannerT: 0, prev: null,
   };
-  S.oppId = otherRobot(S.robotId);
   S.detach = attachKeys();
   S.touch = wantsTouch();
   root.classList.toggle('touch-ui', S.touch);
@@ -99,8 +100,10 @@ function onResize() {
   S?.scene?.resize(w, h);
 }
 
-// the opponent is the next robot along (Phantas, CC1 Pro, Omnie, then round again)
-const otherRobot = (id) => { const ids = Object.keys(S.defs); return ids[(ids.indexOf(id) + 1) % ids.length]; };
+/** Every robot but yours races, in the order they are listed (that is also their grid order). */
+const opponents = () => Object.keys(S.defs).filter((id) => id !== S.robotId);
+// each opponent drives a little differently: its own pace and its own line, from the road's seed
+const oppSpec = (spec, id, i) => ({ id, r: BUMP_R[id], skill: 0.9 + rng(spec.seed + 31 * (i + 1))() * 0.1, offset: ((i % 3) - 1) * 1.6 });
 
 function makeRoads(seedBase) {
   const roads = [];
@@ -129,9 +132,10 @@ function thumbPath(road) {
 /** Build the 3D scene for one road (the preview on the menus, then each lap). */
 function buildScene(spec, { skill } = {}) {
   S.scene?.dispose();
-  const race = new Race(spec.road, { skill: skill ?? lapSkill(spec), dustSeed: spec.seed });
+  const ids = opponents();
+  const race = new Race(spec.road, { skill: skill ?? lapSkill(spec), dustSeed: spec.seed, playerId: S.robotId, playerR: BUMP_R[S.robotId], opps: ids.map((id, i) => oppSpec(spec, id, i)) });
   S.race = race;
-  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], aiDef: S.defs[S.oppId], level: S.gov.level, scale: S.gov.scale, paint: S.paint });
+  S.scene = new RaceScene(renderer, race, { playerDef: S.defs[S.robotId], oppDefs: ids.map((id) => S.defs[id]), level: S.gov.level, scale: S.gov.scale, paint: S.paint });
   S.snap.ok = false; // a new race: nothing to blend with yet
   onResize();
   S.mapBg = null;
@@ -169,7 +173,7 @@ function robotCard(id) {
     <small>${esc(d.blurb)}</small>
     <dl>
       <div><dt>Size</dt><dd>${esc(pick('Size') || '')}</dd></div>
-      <div><dt>Water</dt><dd>${esc((pick('Water tanks') || '').split('·')[0].trim())}</dd></div>
+      ${pick('Water tanks') ? `<div><dt>Clean water</dt><dd>${esc(pick('Water tanks').split('·')[0].replace(/\s*clean/i, '').trim())}</dd></div>` : `<div><dt>Debris</dt><dd>${esc(pick('Debris') || '')}</dd></div>`}
       <div><dt>Cleaning</dt><dd>${esc(pick('Cleaning width') || '')}</dd></div>
     </dl>
   </button>`;
@@ -186,7 +190,7 @@ function paintRow() {
 function robotScreen() {
   return `<div class="g-card g-side">
     <header><span class="g-kicker">Race mode</span><h2>Choose your robot</h2>
-    <p>You race the next robot along, round five random roads. Each lap is about a minute.</p></header>
+    <p>Every other robot races you, round five random roads. You start at the back of the grid. Each lap is about a minute.</p></header>
     <div class="g-robots">${Object.keys(S.defs).map(robotCard).join('')}</div>
     ${paintRow()}
     <p class="g-note">Keys: <kbd>W</kbd> go, <kbd>S</kbd> front brake, <kbd>A</kbd> <kbd>D</kbd> steer, <kbd>Space</kbd> drift brake, <kbd>Shift</kbd> pick up dust, <kbd>G</kbd> graphics, <kbd>P</kbd> frame rate. On a phone or tablet, use the buttons on screen: steer on the left, Go and Brake on the right.</p>
@@ -201,7 +205,7 @@ function roadsScreen() {
       <div><b>Lap ${i + 1}</b><small>${(r.length / 10).toFixed(0)} m · about a minute · random bends</small></div>
     </li>`).join('');
   return `<div class="g-card">
-    <header><span class="g-kicker">${esc(S.defs[S.robotId].short)} vs ${esc(S.defs[S.oppId].short)}</span><h2>Five roads</h2>
+    <header><span class="g-kicker">${esc(S.defs[S.robotId].short)} vs ${opponents().length} robots</span><h2>Five roads</h2>
     <p>Each road is random. Every lap starts from the line, so the same road order can be raced again by reshuffling.</p></header>
     <ol class="g-laps">${rows}</ol>
     <div class="g-actions">
@@ -217,64 +221,71 @@ function fmtTime(t) {
   const m = Math.floor(t / 60), s = (t - m * 60).toFixed(1).padStart(4, '0');
   return `${m}:${s}`;
 }
-const ordinal = (n) => ['', '1st', '2nd'][n] || `${n}th`;
+const ordinal = (n) => { const t = n % 100; return `${n}${t >= 11 && t <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`; };
+const short = (id) => S.defs[id]?.short || id;
+// points for each place, like a racing game; places further back get none
+export const POINTS = [10, 7, 5, 3, 2, 1];
+const placePoints = (place) => (place ? POINTS[place - 1] || 0 : 0);
 
-/** Points for one lap: 3 for first, 1 for second, and a bonus for dust. */
+/** Points for one lap: by place, and a bonus for the dust in your tank. */
 function lapPoints(row, dust) {
-  const place = row.place === 1 ? 3 : row.place === 2 ? 1 : 0;
+  const place = placePoints(row.place);
   return { place, dust: Math.floor(dust / 50), total: place + Math.floor(dust / 50) };
 }
 
 function lapScreen() {
   const last = S.results[S.results.length - 1];
-  const opp = S.defs[S.oppId].short, me = S.defs[S.robotId].short;
-  const won = last.player.place === 1;
+  const me = last.player;
   const finalLap = S.lap === LAPS - 1;
+  const rows = last.all.map((r) => {
+    const mine = r.kind === 'player';
+    const pts = mine ? last.pts.total : placePoints(r.place);
+    return `<tr class="${mine ? 'me' : ''}"><td>${esc(short(r.id))}${mine ? ' (you)' : ''}</td><td>${r.place ? ordinal(r.place) : 'DNF'}</td><td class="mono">${fmtTime(r.time)}</td><td class="mono">${mine ? last.dust : '·'}</td><td class="mono">${pts}</td></tr>`;
+  }).join('');
   return `<div class="g-card">
     <header><span class="g-kicker">Lap ${S.lap + 1} of ${LAPS}</span>
-      <h2>${won ? 'You won the lap' : last.player.finished ? `${ordinal(last.player.place)} place` : 'Not finished'}</h2></header>
+      <h2>${me.place === 1 ? 'You won the lap' : me.finished ? `${ordinal(me.place)} of ${last.all.length}` : 'Not finished'}</h2></header>
     <table class="g-table">
       <thead><tr><th></th><th>Place</th><th>Time</th><th>Dust</th><th>Points</th></tr></thead>
-      <tbody>
-        <tr class="me"><td>${esc(me)} (you)</td><td>${last.player.place ? ordinal(last.player.place) : '–'}</td><td class="mono">${fmtTime(last.player.time)}</td><td class="mono">${last.dust}</td><td class="mono">${last.pts.total}</td></tr>
-        <tr><td>${esc(opp)}</td><td>${last.ai.place ? ordinal(last.ai.place) : '–'}</td><td class="mono">${fmtTime(last.ai.time)}</td><td class="mono">–</td><td class="mono">${last.aiPts}</td></tr>
-      </tbody>
+      <tbody>${rows}</tbody>
     </table>
-    <p class="g-note">Points: 3 for first, 1 for second, plus 1 for every 50 grains of dust in the tank.</p>
+    <p class="g-note">Points by place: ${POINTS.join(', ')}, plus 1 for every 50 grains of dust in your tank.</p>
     <div class="g-actions">
       <button class="g-btn primary" data-focus data-act="${finalLap ? 'final' : 'next-lap'}">${finalLap ? 'See the final result' : `Next: lap ${S.lap + 2}`}</button>
     </div>
   </div>`;
 }
 
+/** Totals over the laps run so far, for every robot, best first. */
 function standings() {
-  const sum = { me: { pts: 0, time: 0, dust: 0, won: 0, done: 0 }, opp: { pts: 0, time: 0, dust: 0, won: 0, done: 0 } };
+  const sum = new Map();
+  const get = (id) => {
+    if (!sum.has(id)) sum.set(id, { id, pts: 0, time: 0, dust: 0, won: 0, done: 0, me: id === S.robotId });
+    return sum.get(id);
+  };
   for (const r of S.results) {
-    sum.me.pts += r.pts.total; sum.opp.pts += r.aiPts;
-    sum.me.dust += r.dust;
-    if (r.player.place === 1) sum.me.won++;
-    if (r.ai.place === 1) sum.opp.won++;
-    if (r.player.finished) { sum.me.time += r.player.time; sum.me.done++; }
-    if (r.ai.finished) { sum.opp.time += r.ai.time; sum.opp.done++; }
+    for (const row of r.all) {
+      const t = get(row.id);
+      t.pts += row.kind === 'player' ? r.pts.total : placePoints(row.place);
+      if (row.place === 1) t.won++;
+      if (row.finished) { t.time += row.time; t.done++; }
+    }
+    get(S.robotId).dust += r.dust;
   }
-  return sum;
+  return [...sum.values()].sort((a, b) => b.pts - a.pts || b.done - a.done || a.time - b.time);
 }
 
 function finalScreen() {
-  const s = standings();
-  const me = S.defs[S.robotId].short, opp = S.defs[S.oppId].short;
-  let verdict;
-  if (s.me.pts !== s.opp.pts) verdict = s.me.pts > s.opp.pts ? 'You win the race' : `${opp} wins the race`;
-  else verdict = 'A draw on points';
-  const tcell = (done, t) => (done ? `${t.toFixed(1)} s` : 'no finish');
+  const table = standings();
+  const top = table[0], tie = table[1] && table[1].pts === top.pts;
+  const verdict = tie ? 'A draw on points at the top' : top.me ? 'You win the race' : `${short(top.id)} wins the race`;
+  const mine = table.findIndex((t) => t.me) + 1;
+  const tcell = (t) => (t.done ? `${t.time.toFixed(1)} s` : 'no finish');
   return `<div class="g-card">
-    <header><span class="g-kicker">Race over · ${LAPS} laps</span><h2>${verdict}</h2></header>
+    <header><span class="g-kicker">Race over · ${LAPS} laps · you came ${ordinal(mine)} of ${table.length}</span><h2>${verdict}</h2></header>
     <table class="g-table">
       <thead><tr><th></th><th>Points</th><th>Lap wins</th><th>Total time (finished laps)</th><th>Dust</th></tr></thead>
-      <tbody>
-        <tr class="me"><td>${esc(me)} (you)</td><td class="mono">${s.me.pts}</td><td class="mono">${s.me.won}</td><td class="mono">${tcell(s.me.done, s.me.time)}</td><td class="mono">${s.me.dust}</td></tr>
-        <tr><td>${esc(opp)}</td><td class="mono">${s.opp.pts}</td><td class="mono">${s.opp.won}</td><td class="mono">${tcell(s.opp.done, s.opp.time)}</td><td class="mono">–</td></tr>
-      </tbody>
+      <tbody>${table.map((t, k) => `<tr class="${t.me ? 'me' : ''}"><td>${k + 1}. ${esc(short(t.id))}${t.me ? ' (you)' : ''}</td><td class="mono">${t.pts}</td><td class="mono">${t.won}</td><td class="mono">${tcell(t)}</td><td class="mono">${t.me ? t.dust : '·'}</td></tr>`).join('')}</tbody>
     </table>
     <div class="g-actions">
       <button class="g-btn primary" data-focus data-act="again">Race again (new roads)</button>
@@ -327,8 +338,7 @@ function endLap() {
   S.lapEnded = true;
   const r = S.race.result();
   const pts = lapPoints(r.player, r.dust);
-  const aiPts = r.ai.place === 1 ? 3 : r.ai.place === 2 ? 1 : 0;
-  S.results.push({ lap: S.lap, player: r.player, ai: r.ai, dust: r.dust, pts, aiPts });
+  S.results.push({ lap: S.lap, player: r.player, all: r.all, dust: r.dust, pts });
   // give the finish a moment to be seen, then show the lap card
   S.timers.push(setTimeout(() => showScreen('lap'), 1100));
 }
@@ -393,7 +403,7 @@ function onEvent(e) {
   }
   if (e.type === 'finish') {
     if (e.kind === 'player') setBanner(`You finished ${ordinal(e.place)}!`, 3000);
-    else setBanner(`${S.defs[S.oppId].short} finished ${ordinal(e.place)}`, 2600);
+    else if (e.place === 1) setBanner(`${short(e.id)} wins the lap`, 2600); // only the winner, so the others do not flood the screen
   }
   if (e.type === 'over') endLap();
 }
@@ -422,7 +432,7 @@ function frame(now) {
     S.acc += dt;
     let guard = 0;
     while (S.acc >= SIM && guard++ < 12) {
-      snapshot(R.player.car, S.snap.p); snapshot(R.ai.car, S.snap.a); S.snap.ok = true; // the picture blends from here to the next state
+      snapshot(R.player.car, S.snap.p); R.opps.forEach((o, k) => { S.snap.o[k] = snapshot(o.car, S.snap.o[k]); }); S.snap.ok = true; // the picture blends from here to the next state
       R.step(SIM, input);
       S.acc -= SIM;
       for (const e of R.events) onEvent(e);
@@ -467,7 +477,7 @@ function setText(sel, text) {
 }
 
 function updateHud(input) {
-  const R = S.race, P = R.player, A = R.ai, c = P.car;
+  const R = S.race, P = R.player, c = P.car;
   const ms = Math.abs(c.vx) * 0.1; // 1 unit = 10 cm
   setText('#g-speed', ms.toFixed(1));
   const chips = [
@@ -485,11 +495,13 @@ function updateHud(input) {
   charge.classList.toggle('boosting', R.drift.tier > 0);
   setRing($('#g-chargebar', S.root), R.drift.tier > 0 ? 1 : R.drift.q / CHARGE_MAX);
   setText('#g-time', fmtTime(Math.max(0, R.clock)));
-  const ahead = P.finished ? P.place === 1 : P.p >= A.p;
-  const place = P.finished ? ordinal(P.place) : ahead ? '1st' : '2nd';
-  setText('#g-pos', place);
-  const gap = Math.abs(P.p - A.p) * 0.1;
-  setText('#g-gap', P.finished ? '' : `${ahead ? 'Ahead' : 'Behind'} by ${gap.toFixed(1)} m`);
+  // where you are in the field, and how far to the robot just ahead (or behind, if you lead)
+  const ord = R.order(), at = ord.indexOf(P);
+  setText('#g-pos', `${ordinal(at + 1)} / ${ord.length}`);
+  const near = at > 0 ? ord[at - 1] : ord[1];
+  setText('#g-gap', P.finished || !near ? '' : at > 0
+    ? `${short(near.id)} ${((near.p - P.p) * 0.1).toFixed(1)} m ahead`
+    : `Leading by ${((P.p - near.p) * 0.1).toFixed(1)} m`);
   setText('#g-dust', String(R.tank));
   setRing($('#g-tankbar', S.root), R.tank / TANK_MAX);
   $('#g-dustg', S.root).classList.toggle('full', R.room <= 0);
@@ -554,7 +566,7 @@ function drawMap() {
     g.strokeStyle = 'rgba(0,0,0,0.6)';
     g.stroke();
   };
-  dot(S.race.ai.car, S.defs[S.oppId].accent, 6);
+  S.race.opps.forEach((o) => dot(o.car, S.defs[o.id].accent, 5.5));
   dot(S.race.player.car, S.defs[S.robotId].accent, 7.5);
 }
 
@@ -638,7 +650,6 @@ function act(name) {
   }
   if (verb === 'robot') {
     S.robotId = arg;
-    S.oppId = otherRobot(arg);
     buildScene(S.roads[0]);
     $('#g-screen', S.root).innerHTML = robotScreen();
     $('#g-screen [data-focus]', S.root)?.focus();

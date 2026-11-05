@@ -3,12 +3,15 @@ import { GROUPS, CONF, SOURCES } from './data/shared.js';
 import phantas from './data/phantas.js';
 import cc1pro from './data/cc1pro.js';
 import omnie from './data/omnie.js';
+import marvel from './data/marvel.js';
+import mt1 from './data/mt1.js';
+import mt1max from './data/mt1max.js';
 import { initJarvis } from './jarvis.js';
 import { openRace, isRaceOpen } from './game/index.js';
 import { initInterruptions } from './interruption-ui.js';
 import { initGuides } from './guide-ui.js';
 
-const ROBOTS = { phantas, cc1pro, omnie };
+const ROBOTS = { phantas, cc1pro, omnie, marvel, mt1, mt1max };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

@@ -37,7 +37,7 @@ export function createRenderer(canvas) {
 const SKY = { top: 0x0b1124, horizon: 0x2b3457, glow: 0xd9824f };
 
 export class RaceScene {
-  constructor(renderer, race, { playerDef, aiDef, level = 2, paint = 'classic', scale = 1 }) {
+  constructor(renderer, race, { playerDef, aiDef = null, oppDefs = null, level = 2, paint = 'classic', scale = 1 }) {
     this.race = race;
     this.road = race.road;
     this.renderer = renderer;
@@ -55,7 +55,7 @@ export class RaceScene {
     this._road();
     this._club();
     this._reflections(); // after the world is built and before the robots join it
-    this._cars(playerDef, aiDef);
+    this._cars(playerDef, oppDefs || [aiDef]);
     this.setPaint(paint);
     this._dust();
     this._mouth();
@@ -67,22 +67,22 @@ export class RaceScene {
     this.time = 0;
     this.fov = 56;
     this.motion = { vx: 0, ax: 0, burn: 0 }; // body lean, nose dip and wheel burnout of the player's robot
-    this.aiVx = 0;
     this.camYaw = 0; // the camera's heading, which trails the robot's and leans into a slide
     this.camDist = 0;
     this.camTarget = new THREE.Vector3(); // scratch, so the camera allocates nothing per frame
     this.iP = snapshot(race.player.car); // the robots as drawn: between the last two steps of the race
-    this.iA = snapshot(race.ai.car);
+    this.iO = race.opps.map((o) => snapshot(o.car));
+    this.oVx = race.opps.map(() => 0);
     this.showroom = false;
     this.scale = scale; // render scale from the quality governor
     this.setLevel(level);
   }
 
-  /** The player's body colour: 'classic' (the robot's own), 'white' or 'black'. The opponent keeps its own paint. */
+  /** The player's body colour: 'classic' (the robot's own), 'white' or 'black'. The opponents keep their own paint. */
   setPaint(key) {
     this.paint = key;
     setPaint(this.playerModel, this.playerDef.id, key);
-    setPaint(this.aiModel, this.aiDef.id, 'classic');
+    this.oppDefs.forEach((d, i) => setPaint(this.oppModels[i], d.id, 'classic'));
   }
 
   /** Draw at a fraction of the pixels (0.7 to 1) and let the browser stretch it: the cheap way to buy back frame time. */
@@ -294,31 +294,35 @@ export class RaceScene {
     this.scene.add(this.club.group);
   }
 
-  _cars(playerDef, aiDef) {
+  _cars(playerDef, oppDefs) {
     this.playerDef = playerDef;
-    this.aiDef = aiDef;
+    this.oppDefs = oppDefs;
     this.playerModel = carModel(playerDef);
-    this.aiModel = carModel(aiDef);
-    for (const m of [this.playerModel, this.aiModel]) { m.car.rotation.x = 0; m.car.rotation.z = 0; m.car.visible = true; } // shared models: start every scene with both shown
-    this.scene.add(this.playerModel.car, this.aiModel.car);
+    this.oppModels = oppDefs.map(carModel); // every robot appears once, so the shared models are never doubled
+    for (const m of [this.playerModel, ...this.oppModels]) { m.car.rotation.x = 0; m.car.rotation.z = 0; m.car.visible = true; } // shared models: start every scene with all shown
+    this.scene.add(this.playerModel.car, ...this.oppModels.map((m) => m.car));
     this.fx = new Effects(this.playerModel, this.road, this.road.seed);
     this.scene.add(this.fx.group);
     // racing numbers, headlights, tail lights and underglow (the paint is part of the model itself)
+    // the racing number is the grid slot: the player starts last, so has the highest
+    const num = (n) => String(n).padStart(2, '0');
     this.extras = {
-      player: robotExtras(this.playerModel, { id: playerDef.id, number: '01' }),
-      ai: robotExtras(this.aiModel, { id: aiDef.id, number: '02' }),
+      player: robotExtras(this.playerModel, { id: playerDef.id, number: num(oppDefs.length + 1) }),
+      opps: this.oppModels.map((m, i) => robotExtras(m, { id: oppDefs[i].id, number: num(i + 1) })),
     };
     // a soft dark pool under each robot so it sits on the road
     const shadowTex = cached('dot', dotTex);
-    for (const key of ['player', 'ai']) {
+    const blob = () => {
       const m = new THREE.Mesh(new THREE.PlaneGeometry(9, 12), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0.45, depthWrite: false, color: 0x0b1116 }));
       m.rotation.order = 'YXZ'; // lie flat, then turn to the robot's heading
       m.rotation.x = -Math.PI / 2;
       m.position.y = 0.03;
       m.renderOrder = 1;
       this.scene.add(m);
-      this[`${key}Blob`] = m;
-    }
+      return m;
+    };
+    this.playerBlob = blob();
+    this.oppBlobs = this.oppModels.map(blob);
   }
 
   _dust() {
@@ -378,24 +382,26 @@ export class RaceScene {
     const race = this.race;
     const alpha = opts.prev ? clamp(opts.alpha ?? 1, 0, 1) : 1;
     const P = alpha < 1 ? lerpState(opts.prev.p, race.player.car, alpha, this.iP) : snapshot(race.player.car, this.iP);
-    const A = alpha < 1 ? lerpState(opts.prev.a, race.ai.car, alpha, this.iA) : snapshot(race.ai.car, this.iA);
+    const O = race.opps.map((o, i) => (alpha < 1 && opts.prev.o?.[i] ? lerpState(opts.prev.o[i], o.car, alpha, this.iO[i]) : snapshot(o.car, this.iO[i])));
     this.time += dt;
     this.club.update(this.time);
 
     const show = !!opts.showroom;
     if (show !== this.showroom) { // entering or leaving the showroom
       this.showroom = show;
-      this.aiModel.car.visible = !show;
-      this.aiBlob.visible = !show;
+      for (const m of this.oppModels) m.car.visible = !show;
+      for (const b of this.oppBlobs) b.visible = !show;
       this._frame();
     }
 
     this._placeCar(this.playerModel, P, dt, this.motion);
-    this._placeCar(this.aiModel, A, dt, null);
+    O.forEach((A, i) => {
+      this._placeCar(this.oppModels[i], A, dt, null);
+      this.oppBlobs[i].position.set(A.x, 0.03, A.z);
+      this.oppBlobs[i].rotation.set(-Math.PI / 2, A.psi, 0);
+    });
     this.playerBlob.position.set(P.x, 0.03, P.z);
     this.playerBlob.rotation.set(-Math.PI / 2, P.psi, 0);
-    this.aiBlob.position.set(A.x, 0.03, A.z);
-    this.aiBlob.rotation.set(-Math.PI / 2, A.psi, 0);
 
     // the vacuum mouth: a moving glow on the road in front of the robot while the pickup is held
     const sx = Math.sin(P.psi), cz = Math.cos(P.psi);
@@ -416,10 +422,13 @@ export class RaceScene {
 
     // lights and underglow follow what the robots are doing
     const boost = clamp((race.drift.vmul - 1) / 0.2, 0, 1);
-    const aiAx = dt > 0 ? (A.vx - this.aiVx) / dt : 0;
-    this.aiVx = A.vx;
+
     this.extras.player.update({ brake: !!opts.brake, speed: clamp(Math.abs(P.vx) / CAR.VMAX, 0, 1), tier: tierOf(race.drift.q), boost, time: this.time });
-    this.extras.ai.update({ brake: aiAx < -3, speed: clamp(Math.abs(A.vx) / CAR.VMAX, 0, 1), tier: 0, boost: 0, time: this.time });
+    O.forEach((A, i) => {
+      const ax = dt > 0 ? (A.vx - this.oVx[i]) / dt : 0;
+      this.oVx[i] = A.vx;
+      this.extras.opps[i].update({ brake: ax < -3, speed: clamp(Math.abs(A.vx) / CAR.VMAX, 0, 1), tier: 0, boost: 0, time: this.time });
+    });
     this.post.set({ speed: opts.racing ? clamp(Math.abs(P.vx) / CAR.VMAX, 0, 1.3) : 0, boost, vignette: 0.28 + 0.18 * boost });
     this.snapshot();
   }
@@ -534,8 +543,8 @@ export class RaceScene {
   /** Free this lap's geometry and materials. The shared renderer and cached textures stay. */
   dispose() {
     this.extras.player.dispose(); // these sit on the shared robot models, so they come off first
-    this.extras.ai.dispose();
-    this.aiModel.car.visible = true; // the showroom hides the opponent; the model is shared, so put it back
+    for (const x of this.extras.opps) x.dispose();
+    for (const m of this.oppModels) m.car.visible = true; // the showroom hides the opponents; the models are shared, so put them back
     this.post.dispose();
     this.scene.traverse((o) => {
       if (o.isInstancedMesh) o.dispose(); // frees the instance buffers, which dispose() on the geometry does not

@@ -5,8 +5,11 @@ import { GUIDES, KINDS, guidesFor } from '../src/data/guides.js';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
 import omnie from '../src/data/omnie.js';
+import marvel from '../src/data/marvel.js';
+import mt1 from '../src/data/mt1.js';
+import mt1max from '../src/data/mt1max.js';
 
-const ROBOTS = { phantas, cc1pro, omnie };
+const ROBOTS = { phantas, cc1pro, omnie, marvel, mt1, mt1max };
 
 test('every guide step names parts the robot has, and only the animation', () => {
   for (const g of GUIDES) {

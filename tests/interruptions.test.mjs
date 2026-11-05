@@ -5,10 +5,13 @@ import assert from 'node:assert/strict';
 import phantas from '../src/data/phantas.js';
 import cc1pro from '../src/data/cc1pro.js';
 import omnie from '../src/data/omnie.js';
+import marvel from '../src/data/marvel.js';
+import mt1 from '../src/data/mt1.js';
+import mt1max from '../src/data/mt1max.js';
 import { STATS, SOURCE } from '../src/data/interruption-stats.js';
 import { TYPES, CATEGORIES, CATEGORY_ORDER, partsFor, typeStats, totalEvents, ranked, fmtHours, wording, typesForPart, alarmCodes } from '../src/data/interruptions.js';
 
-const ROBOTS = { phantas, cc1pro, omnie };
+const ROBOTS = { phantas, cc1pro, omnie, marvel, mt1, mt1max };
 
 test('interruptions: every recorded alarm code belongs to exactly one type, and every type code was recorded', () => {
   const seen = new Map();

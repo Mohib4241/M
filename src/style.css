@@ -104,7 +104,7 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; padding: 0; }
 .look button[aria-pressed='true'] { background: var(--accent); color: #fff; }
 :root[data-look='holo'] .look button[aria-pressed='true'] { color: #02121c; }
 
-.switch { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 14px 18px 0; }
+.switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 14px 18px 0; }
 .robot-tab { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 9px 11px; background: var(--fill); border: 1px solid var(--line); text-align: left; transition: background .2s, border-color .2s; }
 .robot-tab span { font-size: 11.5px; color: var(--muted); }
 .robot-tab b { font: 600 16px/1.1 var(--display); color: var(--title); }
@@ -659,3 +659,10 @@ kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius
 @keyframes capIn { from { opacity: 0; transform: translateY(6px); } }
 @media (max-width: 860px) { .guide-cap { top: 56px; bottom: auto; left: 10px; right: 10px; padding: 9px 12px; } .guide-cap b { font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { .guide-cap { animation: none; } }
+/* six robots on the race menu: two-up compact cards, no blurb */
+.g-side .g-robots { grid-template-columns: 1fr 1fr; gap: 8px; }
+.g-side .g-robot small { display: none; }
+.g-side .g-robot dl div:nth-child(3) { display: none; }
+@media (max-width: 520px) { .g-side .g-robots { grid-template-columns: 1fr; } }
+.g-side .g-robot dd { white-space: nowrap; font-size: 11.5px; }
+.g-side .g-robot dl { gap: 6px 12px; }

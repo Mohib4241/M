@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of three commercial cleaning robots: the **Gausium Phantas**, the **PUDU CC1 Pro** and the **Gausium Omnie**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of six commercial cleaning robots: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -165,7 +165,7 @@ The steps follow what was done on site on 4 November 2026 (`src/data/guides.js`)
 
 ## Race mode
 
-A small game over the same robots. Click **Race mode** in the left panel, choose a robot (the other one is your opponent), look at the five roads, then **Start race**. Each lap is one circuit of a random road, about a minute long, with bends of different tightness. The robot you did not choose races you on every lap. After five laps the most points wins.
+A small game over the same robots. Click **Race mode** in the left panel, choose your robot, look at the five roads, then **Start race**. Each lap is one circuit of a random road, about a minute long, with bends of different tightness. **Every other robot races you on every lap.** They line up on a staggered grid like a racing game, two lanes, each robot a little behind the one before, and you start at the back. Each opponent has its own pace and line, and every robot can bump every other one (bigger robots shove harder). After five laps the most points wins.
 
 | Key | What it does |
 | --- | --- |
@@ -180,7 +180,7 @@ A small game over the same robots. Click **Race mode** in the left panel, choose
 
 **On a phone, a tablet or a small window** (up to 900 px wide, or any touch screen) the race shows buttons on screen: left and right on the left thumb, **Go** (accelerator) and **Brake** on the right, with **Drift** and **Dust** above them. Each button follows its own finger, so you can steer and hold Go at once. The **Graphics** button and a **Pause** button sit at the top. Starting a race asks for full screen in landscape; where the browser will not turn the screen (iPhone), a phone held upright shows the race on its side. Phones start on Medium graphics, and the panels over the race have no blur behind them, which keeps the frame rate up.
 
-Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of dust in the tank. The lap card and the final table show each lap.
+Points by place on each lap: 10, 7, 5, 3, 2 and 1, plus 1 for every 50 grains of dust in your tank. The lap card ranks every robot, and the final table ranks them on total points. The HUD shows your place in the field (for example 4th / 6) and how far the robot just ahead of you is. A lap closes when everyone is home, or 12 seconds after you finish (robots still out are not finished).
 
 **Drifting.** While the rear slides with `Space` held, a drift charge builds. The tyre trails change colour as it reaches each tier: blue, then amber, then pink. Let go of `Space` and the charge becomes a short boost (tier 1: 1.2 s, tier 2: 1.6 s, tier 3: 2.0 s) with flames from the tail. A drift also gives tyre smoke, skid marks that fade, a squealing tyre sound, and sparks when a wheel scrapes the kerb. The opponent never drifts or boosts.
 
@@ -196,7 +196,7 @@ Points: 3 for first place on a lap, 1 for second, and 1 for every 50 grains of d
 
 **Body colour.** On the robot screen, under the robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`catalogue-paint`).
 
-The game is a stylised model, not the real robot. All robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. You race the next robot along (Phantas, CC1 Pro, Omnie). On phones and small windows it has buttons on screen.
+The game is a stylised model, not the real robot. All robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. On phones and small windows it has buttons on screen.
 
 ## Where the data comes from
 
@@ -217,6 +217,12 @@ The manufacturer sites (`gausium.com`, `www.pudurobotics.com`, `academy.pudutech
 The Omnie is shown in its roller-brush version, built from Gausium's specification page, its brochure (EN, 2025-11-14), a distributor sheet and Gausium's product pictures (`src/data/omnie.js`). Published figures: 810 x 700 x 1,070 mm, 148 kg (157 kg with disc brushes), 33 L clean and 24 L waste water, 60 Ah 24 V lithium iron phosphate battery (3 h scrubbing, 8 h sweeping or dust mopping, about 2 h to charge), dual roller brushes 406 mm wide, 780 mm with the two side brushes, a built-in debris tray, up to 1.4 m/s, and a 3D LiDAR, a 2D LiDAR, a 3D depth camera, an RGB camera, anti-collision and anti-drop sensing.
 
 The outside follows the pictures: a silver body that leans in a little towards a black collar and round top with a flat dark panel and the red emergency stop, a camera pod at the front top, a wide dark front panel, a rear handle, and a rounded black base. What sits behind the top and front panels is not stated, and which lens in the pod is the 3D LiDAR is our reading. No dock or workstation is listed with the Omnie, so none is shown, and there are no guides for it yet.
+
+## Gausium Marvel, PUDU MT1 and MT1 Max
+
+**Marvel** (`src/data/marvel.js`) follows Gausium's specification page, brochure (EN, 2026-09-22) and product picture: 1,108 x 699 x 1,168 mm, 220 kg, 80 L clean and 70 L self-cleaning waste water, 120 Ah lithium iron phosphate battery, scrubbing 600 mm, sweeping 840 mm and dust mopping 760 mm wide, sweeping and scrubbing at once, two front side brushes and a 3D LiDAR. The outside follows the picture (silver sides, big black front panel, black lid with the stop and a sensor dome). The sources name only the 3D LiDAR among its sensors, so the others, the brush types, the hopper and the squeegee are marked inferred.
+
+**MT1** and **MT1 Max** (`src/data/mt1.js`, one build for both) are robotic sweepers with no water system. Their numbers come from retailer listings of PUDU's specifications, PUDU's MT1 product presentation and user manual, and PUDU's launch release for the Max: MT1 840 x 600 x 490 mm, 65 kg (74 to 75 kg in some listings), 35 L bin, 700 mm wide, 45 Ah, up to 8 h; MT1 Max 840 x 600 x 675 mm, 85 kg, 35 L bin, 700 mm with side brush, 60 Ah, 5 to 10 h, IP54, with a 3D LiDAR, a LiDAR, a VSLAM camera, three RGBD and two RGB cameras and three line lasers. Listings that disagree are noted on each robot's card. **No picture of either robot could be reached when they were added, so their outside is schematic**, and marked so. Water alarms point at their bin (or their filter and fan, for a blocked suction) as the nearest match. None of the three has a dock shown or a guide yet.
 
 ## Docking stations
 

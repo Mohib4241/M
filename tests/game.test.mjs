@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { makeRoad } from '../src/game/track.js';
 import { newCar, stepCar, CAR } from '../src/game/car.js';
 import { driverInput } from '../src/game/ai.js';
-import { Race, COUNTDOWN } from '../src/game/race.js';
+import { Race, COUNTDOWN, GRACE } from '../src/game/race.js';
 import { DustField, NOZZLE, TANK_MAX } from '../src/game/dust.js';
 import { rng } from '../src/game/rng.js';
 import { newDrift, stepDrift, tierOf, onKerb, BOOST } from '../src/game/drift.js';
@@ -506,4 +506,44 @@ test('body colours: setPaint recolours the shared shell materials and classic pu
   assert.equal(model.shared.get('shell').emissive.v, 0); // classic has no glow
   setPaint(model, 'phantas', 'nonsense'); // an unknown key falls back to classic
   assert.equal(model.shared.get('shell').color.v, LIVERY.phantas.shell);
+});
+
+test('full field: every robot starts on a staggered grid, one behind the other, the player last', () => {
+  const road = makeRoad(21);
+  const opps = ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({ id, skill: 0.95, offset: ((i % 3) - 1) * 1.6, r: 3 }));
+  const race = new Race(road, { opps, playerId: 'me', playerR: 3 });
+  assert.equal(race.racers.length, 6);
+  const slots = race.racers.map((r) => -r.p);
+  for (let i = 1; i < slots.length; i++) assert.ok(slots[i] > slots[i - 1], `slot ${i} must be behind slot ${i - 1}`);
+  assert.equal(race.player.slot, 5, 'the player starts at the back');
+  // lanes alternate, so neighbours are side by side and staggered, never on top of each other
+  for (let i = 0; i < race.racers.length; i++) for (let j = i + 1; j < race.racers.length; j++) {
+    const a = race.racers[i].car, b = race.racers[j].car;
+    assert.ok(Math.hypot(a.x - b.x, a.z - b.z) >= 6, `racers ${i} and ${j} overlap on the grid`);
+  }
+});
+
+test('full field: a lap ends with every robot placed once, in order, and the player can win', () => {
+  const road = makeRoad(22, { length: 600 });
+  const opps = ['a', 'b', 'c'].map((id, i) => ({ id, skill: 0.92 + i * 0.02, offset: ((i % 3) - 1) * 1.6, r: 3 }));
+  const race = new Race(road, { opps, playerId: 'me', playerR: 3 });
+  let guard = 0;
+  while (!race.over && guard++ < 60 * 200) race.step(DT, driverInput(race.player.car, road, race.player.hint, 1.0));
+  const res = race.result();
+  assert.equal(res.all.length, 4);
+  const placed = res.all.filter((r) => r.place).map((r) => r.place);
+  assert.deepEqual(placed, [...placed].sort((x, y) => x - y), 'finishing order');
+  assert.equal(new Set(placed).size, placed.length, 'no place given twice');
+  assert.ok(res.player.place, 'the player finished and was placed');
+});
+
+test('full field: the lap closes a short while after the player finishes, even if others are still out', () => {
+  const road = makeRoad(23, { length: 600 });
+  const race = new Race(road, { opps: [{ id: 'slow', skill: 0.2, r: 3 }], playerId: 'me' });
+  let guard = 0;
+  // the player keeps to its own lane (the grid's right lane), so it can pass the crawling robot
+  while (!race.over && guard++ < 60 * 200) race.step(DT, driverInput(race.player.car, road, race.player.hint, 1.0, -4));
+  assert.ok(race.player.finished, 'the player finished');
+  assert.ok(race.over);
+  assert.ok(race.clock - race.playerFinishAt <= GRACE + 0.05, 'closed within the grace time');
 });

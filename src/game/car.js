@@ -90,7 +90,7 @@ function integrate(c, inp, h, surf) {
 export function contact(a, b) {
   const dx = b.x - a.x, dz = b.z - a.z;
   const d = Math.hypot(dx, dz);
-  const min = CAR.RADIUS * 2;
+  const min = (a.size || CAR.RADIUS) + (b.size || CAR.RADIUS); // each robot has its own size (car.size)
   if (d >= min || d < 1e-6) return false;
   const nx = dx / d, nz = dz / d;
   const push = (min - d) / 2;

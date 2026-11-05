@@ -13,6 +13,9 @@ export const LIVERY = {
   phantas: { shell: 0x1b4a70, trim: 0x0c1621, accent: [0.21, 0.94, 1.0], css: '#35f0ff' },
   cc1pro: { shell: 0x6a3f22, trim: 0x15100c, accent: [1.0, 0.69, 0.18], css: '#ffb02e' },
   omnie: { shell: 0x4b3a7a, trim: 0x100c1a, accent: [0.71, 0.61, 1.0], css: '#b49bff' },
+  marvel: { shell: 0x154a5c, trim: 0x0a1418, accent: [0.37, 0.82, 1.0], css: '#5fd0ff' },
+  mt1: { shell: 0x2e5a2f, trim: 0x0c140c, accent: [0.49, 0.88, 0.5], css: '#7ee081' },
+  mt1max: { shell: 0x6a2b1c, trim: 0x160b08, accent: [1.0, 0.48, 0.35], css: '#ff7a59' },
 };
 const liveryOf = (id) => LIVERY[id] || LIVERY.phantas;
 
