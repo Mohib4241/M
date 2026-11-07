@@ -3,15 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import phantas from '../src/data/phantas.js';
-import cc1pro from '../src/data/cc1pro.js';
-import omnie from '../src/data/omnie.js';
-import marvel from '../src/data/marvel.js';
-import mt1 from '../src/data/mt1.js';
-import mt1max from '../src/data/mt1max.js';
 import { GROUPS, SOURCES, CONF } from '../src/data/shared.js';
+import { ROBOTS } from '../src/data/robots.js';
 
-const ROBOTS = { phantas, cc1pro, omnie, marvel, mt1, mt1max };
+const { phantas } = ROBOTS;
 const finite3 = (v) => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
 
 test('models: every part has an id, a known group, a layer, a build function and sources that exist', () => {
@@ -54,6 +49,7 @@ test('models: each robot has a docking station made of several parts, split off 
 test('models: the parts the race dresses as a car are on every robot', () => {
   const need = [/^top-(cover|hood)$/, /^front-(cover|shell)$/, /^rear-(cover|shell)$/, /^side-(cover|shell)-[lr]$/, /^bumper$/, /^wheel-l$/, /^wheel-r$/];
   for (const [rid, def] of Object.entries(ROBOTS)) {
+    if (def.race === false) continue; // the deck robots are not floor cleaners and do not race
     for (const re of need) assert.ok(def.parts.some((p) => re.test(p.id)), `${rid}: nothing matches ${re}`);
   }
 });

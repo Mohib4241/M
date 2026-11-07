@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of six commercial cleaning robots: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of 19 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -197,6 +197,47 @@ Points by place on each lap: 10, 7, 5, 3, 2 and 1, plus 1 for every 50 grains of
 **Body colour.** On the robot screen, under the robots, choose Classic (each robot's own colour), White or Black. The robot turns beside the menu card so the change shows at once. The choice applies to your robot (the opponent keeps its own paint) and is remembered in the browser (`catalogue-paint`).
 
 The game is a stylised model, not the real robot. All robots drive the same way, with a top speed of 1.3 m/s, close to the CC1 Pro's published 1.2 m/s. On phones and small windows it has buttons on screen.
+
+## Indoor, outdoor and categories
+
+Every robot has two labels, and a short written profile that says where it fits.
+
+- **Where it works**: **Indoor**, **Outdoor**, or both. The robot list in the left panel has a switch, **All · Indoor · Outdoor**, with a count on each. A robot that works in both (the MT1 Max, the Go2 and the Guard R) shows under each. The choice is remembered.
+- **What it does**: the robots sit in categories, each with a line that says what that kind of robot does and where it fits. The category names are the product deck's.
+- **Where it fits** (right panel, under the robot's name): the environment tag or tags, the category, a paragraph on where it works with the numbers that matter there, three points to know and **why** it has that tag. The three points of the deck robots are the deck's own wording.
+
+| Category | Robots | Works |
+| --- | --- | --- |
+| Floor cleaning | Gausium Phantas, Omnie, Marvel · PUDU CC1 Pro, MT1 · PUDU MT1 Max | Indoor (the MT1 Max also outdoor) |
+| Facade cleaning | X-Human K3, X-Human J1 | Outdoor |
+| Solar panel cleaning | X-Human G2 | Outdoor |
+| Duct cleaning · Air | Kuaitong KT-976 · RJ Bots Q38, Q40, Q50 | Indoor |
+| Duct cleaning · Grease | RJ Bots G-31 | Indoor |
+| Duct cleaning · Sewer | RJ Bots K20 | Outdoor (underground) |
+| Inspection robots | Unitree Go2 | Indoor and outdoor |
+| Security patrolling | SMP Robotics S5 PTZ (outdoor) · NWS Guard R (both) | Outdoor / both |
+| Patrolling robots | SMP Robotics S5.2 PTZ | Outdoor |
+
+A tag is only given where a source supports it, and the profile says which: a facade or a solar panel is outside a building, a duct is inside one, the MT1 Max is titled an outdoor and semi-outdoor sweeper by PUDU, and NWS says the Guard R is built for indoor and outdoor use. The MT1 is tagged indoor because PUDU lists car parks, warehouses and factories and gives it no weather rating; its outdoor model is the MT1 Max. If you know better, change `env` in `src/data/catalogue.js` and the test in `tests/catalogue.test.mjs` will tell you if a kind of job and its setting no longer agree.
+
+### The 13 robots from the product deck
+
+Each one has a teardown like the floor cleaners: parts that lift off in order, a label and a description for each part, its published numbers, and its sources (right panel, Sources). The outside follows the picture in the deck; where parts sit inside is a schematic reconstruction, not CAD.
+
+- **Numbers** come from the makers' own pages and data sheets: X-Human's K3, J1 and G2 pages, Kuaitong's KT-976 data sheet, RJ-Bot's Q38, Q40, Q50, G31 and K20 pages, Unitree's Go2 page, SMP Robotics' S5 PTZ data sheet and S5.2 brochure, and NWS Digital's Guard R page.
+- **Sizes**: SMP's two robots (from the dimensioned drawings in the data sheet and the brochure), the KT-976, the Q50, the K20 and the Go2 have published sizes, and the models use them. X-Human (K3, J1, G2), RJ-Bot's Q38, Q40 and G31 and the NWS Guard R publish none, so those models are scaled from their pictures and say so in their notes and in the Size row. Treat their size as a picture, not a measurement.
+- **Names**: the deck's "G02" is Unitree's **Go2**, and "S5.2TPZ" is SMP's **S5.2 PTZ**. The deck's K20 is RJ-Bot's own crawler.
+- **Disagreements** are shown, not hidden: Kuaitong's pages disagree on the KT-976's weight (the data sheet table is used); RJ-Bot's current K20 is a six-wheel drive while the deck's picture shows four wheels (the model follows the picture); X-Human's solar page lists several figures for its robots in general (said where it matters).
+- **Not in the picture**: a part that belongs to the system but is not in the deck's picture is left out and named in the robot's notes: the KT-976's main unit, the Q38's control box, the K20's cable reel, the G31's high-pressure unit.
+- They are not floor cleaners, so they do not race, have no docking station and have no interruption list or guides (`race: false` and `noDock: true` in their data files; the race and those lists are for the six floor cleaners).
+
+### Add a robot
+
+1. Write `src/data/<id>.js`, copying the closest existing robot. The builders for crawler tracks, round brushes, hoses, control cases, off-road wheels and the like are in `src/field.js`; `src/lib.js` has the cleaning-robot parts (tanks, LiDAR, cameras, boards).
+2. Register it in `src/data/robots.js`.
+3. Add its profile to `src/data/catalogue.js`: `env`, `category`, the name on its button, one line on what it is, a paragraph on where it fits, three points and the reason for the tag.
+4. Add any new sources to `src/data/shared.js`.
+5. Run `npm test`: it checks every part, every source, the profile and the setting that goes with the job.
 
 ## Where the data comes from
 

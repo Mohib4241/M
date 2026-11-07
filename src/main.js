@@ -1,17 +1,13 @@
 import { Stage } from './stage.js';
 import { GROUPS, CONF, SOURCES } from './data/shared.js';
-import phantas from './data/phantas.js';
-import cc1pro from './data/cc1pro.js';
-import omnie from './data/omnie.js';
-import marvel from './data/marvel.js';
-import mt1 from './data/mt1.js';
-import mt1max from './data/mt1max.js';
+import { ROBOTS } from './data/robots.js';
 import { initJarvis } from './jarvis.js';
 import { openRace, isRaceOpen } from './game/index.js';
 import { initInterruptions } from './interruption-ui.js';
 import { initGuides } from './guide-ui.js';
+import { initBrowser } from './browser-ui.js';
+import { PROFILES, ENVIRONMENTS, CATEGORIES, isBoth } from './data/catalogue.js';
 
-const ROBOTS = { phantas, cc1pro, omnie, marvel, mt1, mt1max };
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -54,7 +50,10 @@ function useRobot(id, { intro = true } = {}) {
   def = ROBOTS[id];
   app.dataset.robot = id;
   applyLookUI();
-  $$('.robot-tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.robot === id)));
+  browser.select(id);
+  const floor = PROFILES[id]?.category === 'floor'; // the alarms and guides are written for the floor cleaners
+  $('#intr-sec').hidden = !floor;
+  $('#guides-sec').hidden = !floor;
   stage.loadRobot(def, { intro });
   buildList();
   buildCallouts();
@@ -115,7 +114,21 @@ function srcList(keys) {
 function kv(rows) { return rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd${String(v).length > 22 ? ' class="long"' : ''}>${esc(v)}</dd>`).join(''); }
 
 // Three headline numbers from a robot's published specs (the number and its unit only).
+// Where the robot works and what it is for, in the robot's own words (see data/catalogue.js).
+function whereBlock(id) {
+  const p = PROFILES[id];
+  if (!p) return '';
+  const chips = p.env.map((e) => `<span class="env-chip" data-env="${e}">${esc(ENVIRONMENTS[e].label)}</span>`).join('');
+  return `<div class="d-sec where"><h3>Where it fits</h3>
+      <div class="where-chips">${chips}<span class="cat-chip">${esc(CATEGORIES[p.category].label)}</span></div>
+      <p class="where-text">${esc(p.where)}</p>
+      <ul class="points">${p.points.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+      <p class="basis"><b>Why ${isBoth(p) ? 'indoor and outdoor' : esc(ENVIRONMENTS[p.env[0]].label.toLowerCase())}:</b> ${esc(p.basis)}</p>
+    </div>`;
+}
+
 function kpiTiles(d) {
+  if (d.kpis) return `<div class="kpis" aria-hidden="true">${d.kpis.map(([k, v]) => `<div class="kpi"><small>${esc(k)}</small><b${String(v).length > 8 ? ' class="sm"' : ''}>${esc(v)}</b></div>`).join('')}</div>`; // the robot names its own headline numbers
   // the first number and its unit, or the number after `prefer` ("Scrub 600 · sweep 840 · mop 760 mm" → "840 mm")
   const num = (v, prefer) => {
     const s = String(v);
@@ -138,6 +151,7 @@ function showOverview() {
     <div class="d-kicker">${esc(d.maker)}</div>
     <h2 class="d-title">${esc(d.name)}</h2>
     <p class="d-blurb">${esc(d.blurb)}</p>
+    ${whereBlock(d.id)}
     ${kpiTiles(d)}
     <div class="d-sec"><h3>Published specs</h3>
       <dl class="kv">${kv(d.stats)}</dl>
@@ -257,10 +271,6 @@ $$('.look button').forEach((b) => b.addEventListener('click', () => {
   if (sel) { $$('.part').forEach((x) => x.classList.toggle('sel', x.dataset.id === sel)); showPart(sel); } else showOverview();
 }));
 
-$$('.robot-tab').forEach((b) => b.addEventListener('click', () => {
-  if (b.dataset.robot !== app.dataset.robot) useRobot(b.dataset.robot);
-  if (matchMedia('(max-width: 860px)').matches) $('#left').classList.remove('open');
-}));
 
 // dock
 const slider = $('#explode');
@@ -443,12 +453,17 @@ addEventListener('orientationchange', layoutInsets);
 // ─────────────── boot ───────────────
 const intr = initInterruptions({ stage, app, $, esc, getDef: () => def, groups: GROUPS, gcol, onChange: () => { if (intr.active()) guides.release(); hint(false); showOverview(); } });
 const guides = initGuides({ stage, app, $, esc, getDef: () => def, onPick: () => { if (intr.active()) intr.clear(); }, onChange: () => { hint(false); showOverview(); } });
+const browser = initBrowser({
+  root: $('#browse'), robots: ROBOTS, esc,
+  onPick: (id) => { useRobot(id); if (matchMedia('(max-width: 860px)').matches) $('#left').classList.remove('open'); },
+});
+$('#brand-sub').textContent = `Open up ${browser.count} robots, piece by piece: floor cleaners, facade and solar robots, duct crawlers, inspection and security robots.`;
 useRobot('phantas');
 layoutInsets();
 initJarvis({ stage, app, $ });
 
 // Race mode runs on its own canvas, so the viewer's render loop pauses while it is open.
-$('#play-btn').onclick = () => openRace(ROBOTS, {
+$('#play-btn').onclick = () => openRace(Object.fromEntries(Object.entries(ROBOTS).filter(([, r]) => r.race !== false)), { // only the floor cleaners race
   onOpen: () => stage.renderer.setAnimationLoop(null),
   onClose: () => stage.renderer.setAnimationLoop((t) => stage._frame(t)),
 });

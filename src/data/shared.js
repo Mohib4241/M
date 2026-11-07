@@ -11,6 +11,8 @@ export const GROUPS = {
   drive: { label: 'Drive & frame',   color: '#b79cff', studio: '#7254d0' },
   sense: { label: 'Sensing',         color: '#ff6b8b', studio: '#cf2f58' },
   dock:  { label: 'Docking station', color: '#7ff0b0', studio: '#2a9d62' },
+  arm:   { label: 'Arm & mast',      color: '#ffb4e6', studio: '#b0368a' },
+  tether:{ label: 'Hose, cable & reel', color: '#c8f06a', studio: '#6b8a14' },
 };
 
 // How well-sourced a part's data is. Shapes and positions are always schematic.
@@ -21,6 +23,24 @@ export const CONF = {
 };
 
 export const SOURCES = {
+  'deck':      { t: 'Robonomics: Robots by category (the product deck supplied for this project)', u: '' },
+  'kt-976':    { t: 'Kuaitong: KT-976 duct cleaning robot with vacuums and cameras (data sheet)', u: 'https://www.ktductclean.com/duct-cleaning-machine/kt-976-commercial-hvac-maintenance-technology.html' },
+  'rj-q38':    { t: 'RJ-Bot: Q38 air duct cleaning robot', u: 'https://www.rj-bot.com/product-details/q38-air-duct-cleaning-robot.html' },
+  'rj-q40':    { t: 'RJ-Bot: Q40 air duct cleaning robot with roller brush', u: 'https://www.rj-bot.com/product-details/q40-air-duct-clean-robot.html' },
+  'rj-q50':    { t: 'RJ-Bot: Q50 AC vent and duct cleaner with rotation nylon brush', u: 'https://www.rj-bot.com/product-details/q50-ac-vent-duct-cleaner.html' },
+  'rj-hvac':   { t: 'RJ-Bot: HVAC air vent and duct cleaning solutions', u: 'https://www.rj-bot.com/product-details/HVAC-Air-Vent-and-Duct-Cleaning-Solutions.html' },
+  'rj-g31':    { t: 'RJ-Bot: G31 exhaust duct cleaning robot', u: 'https://www.rj-bot.com/product-details/g31-kitchen-duct-clean-robot.html' },
+  'rj-k20':    { t: 'RJ-Bot: K20 sewer pipe inspection crawler', u: 'https://www.rj-bot.com/product-details/K20-drain-pipe-crawler-with-inspection-camera.html' },
+  'xh-fac':    { t: 'X-Human: K3 and J1 facade cleaning robots (product page)', u: 'https://tools.infility.cn/customer_page/facade-cleaning-robot' },
+  'xh-solar':  { t: 'X-Human: G1 and G2 solar panel cleaning robots (product page)', u: 'https://tools.infility.cn/customer_page/solar-panel-cleaning-robot/' },
+  'xh-site':   { t: 'X-Human: curtain wall and PV panel cleaning robots', u: 'https://x-humanbot.com/' },
+  'ut-go2':    { t: 'Unitree Robotics: Go2 quadruped robot', u: 'https://www.unitree.com/go2' },
+  'smp-s5':    { t: 'SMP Robotics: S5 PTZ security robot data sheet (2017)', u: 'https://smprobotics.com/wp-content/uploads/2017/03/smp_tds_s5_ptz_ptzhd_03_2017_07.pdf' },
+  'smp-s52':   { t: 'SMP Robotics: S5.2 series outdoor security robot brochure (2019)', u: 'https://smprobotics.com/wp-content/uploads/2019/04/security_robot_s52_smp_robotics_2019.pdf' },
+  'smp-site':  { t: 'SMP Robotics: security robots (S5 PTZ and S5.2 series)', u: 'https://smprobotics.com/security_robot/' },
+  'nws-gr':    { t: 'NWS Digital: NWS Guard R', u: 'https://digital.nwsgmbh.de/en/products/nws-guard-r' },
+  'nws-rob':   { t: 'NWS Digital: Guard robots for indoor and outdoor use', u: 'https://digital.nwsgmbh.de/robotic' },
+  'kt-976-d':  { t: 'Kuaitong: KT-976 air duct cleaning robot, vacuuming while brushing', u: 'https://www.ktductclean.com/duct-cleaning-machine/kt-976-air-duct-cleaning-robot-vacuuming.html' },
   'photos':    { t: 'Photographs of a Phantas with its dock and of a CC1 Pro, supplied for this project', u: '' },
   'gs-spec':   { t: 'Gausium: Phantas specifications', u: 'https://gausium.com/specs/phantas/' },
   'taski':     { t: 'TASKI Phantas product sheet (Diversey)', u: 'https://taski.com/wp-content/uploads/2024/11/PSS-TASKI_Phantas.pdf' },
