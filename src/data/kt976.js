@@ -48,10 +48,10 @@ export default {
     ['Warranty', '1 year'],
   ],
   notes: [
+    'Kuaitong\'s own KT-976 page carries pictures of a different machine from the one in the product deck: a black four-wheel robot with orange wheel caps and a long arm with a round brush. The deck\'s picture (yellow track frames, a wide suction head, a yellow arm) is the same machine RJ-Bot shows on its Q40 page. The model follows the deck\'s picture, as asked; the figures are Kuaitong\'s data sheet for the KT-976.',
     'Kuaitong\'s pages disagree with each other: the data sheet table gives an 11 kg robot of 650 × 310 × 160 mm and a 2,000 m³/h suction; a long marketing text on a sister page describes a 28 kg crawler with a HEPA filter and other figures. The data sheet table is used here.',
-    'The outside follows the product picture in the product deck: black chassis, yellow track frames, a wide suction head at the front, a yellow arm that carries a motor and a round brush, and a separate control case with a monitor. The brush is shown raised, as in the picture.',
-    'The 43 kg main unit (the vacuum and power unit) is listed in the data sheet but is not in the picture, so it is not modelled.',
-    'Kuaitong\'s sheet says the vacuums sit on the top and the bottom of the robot and that two negative-pressure fans work together; where the fans sit in the head is our reading.',
+    'The outside follows the product picture in the deck: black chassis, yellow track frames, a wide suction head at the front, a yellow arm that carries a motor and a round brush, and a separate control case with a monitor. The brush is shown raised, as in the picture.',
+    'The 43 kg main unit (the vacuum and power unit, 480 × 500 × 700 mm) is in the data sheet but is not in the picture, so it is not modelled. Kuaitong says the vacuums sit on the top and the bottom of the robot and two negative-pressure fans work together; where the fans sit in the head is our reading.',
   ],
   sources: ['deck', 'kt-976', 'kt-976-d'],
 

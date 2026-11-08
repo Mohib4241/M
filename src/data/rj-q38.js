@@ -39,13 +39,14 @@ export default {
     ['Brushes', 'Soft nylon, in modular sets'],
     ['Dust', 'Negative-pressure vacuum (a W40 unit is recommended)'],
     ['Cable', '15 m, configured to the job'],
+    ['In the box', 'Control box, power and shielded cables, short brush, brush, adapter, memory card, remote control'],
     ['Maker', 'In business since 2008 · CE · 1-year warranty'],
   ],
   notes: [
-    'RJ-Bot publishes no size or weight for the Q38. The size of the model here is our estimate from the product picture and the 200–750 mm duct range; treat it as a picture, not a measurement.',
-    'The outside follows the product picture in the deck: a flat black chassis with a slot down the middle, four black tyres on silver alloy wheels with orange caps, a tall tilted arm and a head with two white nylon brushes and a camera. The picture shows the brushes in the big set-up.',
-    'The control box and the vacuum unit (RJ-Bot recommends its W40) are part of the system but not in the picture, so they are not modelled.',
-    'The dual bottom brushes of the fourth set-up are not in the picture either.',
+    'RJ-Bot publishes no size or weight for the Q38. The size of the model is our estimate from the product picture and the 200–750 mm duct range; treat it as a picture, not a measurement.',
+    'RJ-Bot\'s own Q38 page shows a blue four-wheel robot with a black round brush and side brushes at the nose (the picture your deck uses for the Q40), and a front view with two white brushes. The deck\'s Q38 picture (black chassis, orange wheel caps, two white brushes) is not on RJ-Bot\'s page. The model follows the deck\'s picture.',
+    'The outside follows the deck\'s picture: a flat black chassis with a slot down the middle, four black tyres on silver alloy wheels with orange caps, a tall tilted arm and a head with two white nylon brushes and a camera. The picture shows the brushes in the big set-up.',
+    'RJ-Bot sells the Q38 with a control box (three HD cameras recorded on it), a power cable, a shielded cable, a short brush, a brush, an adapter, a memory card and a remote control; it recommends its W40 negative-air vacuum. These are not on the robot and are not modelled. The dual bottom brushes of the fourth set-up are not in the picture either.',
   ],
   sources: ['deck', 'rj-q38', 'rj-hvac'],
 

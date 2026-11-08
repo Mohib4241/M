@@ -43,6 +43,9 @@ export default {
     ['Battery', '2 × 12 V lead-acid 100 Ah, or LiFePO4 120 Ah · charge in about 4 h'],
     ['Weather', 'Rain, snow, gusty wind · -20 to +45 °C'],
     ['Link', 'Wi-Fi 802.11 a/b/g/n, 2.4 GHz, 0.5 mile range'],
+    ['Alarm', 'Siren · strobe · two-way audio · panic button'],
+    ['Navigation', 'Visual route memorised on a first run · GPS accuracy 2.2 m, 0.8 m visual, 0.4 m with night markers'],
+    ['Turning', 'Radius 5.2 m · 0.9 m route width'],
   ],
   notes: [
     'The data sheet covers three versions: S5 PTZ, S5 HD and S5 HD PTZ. The figures are the S5 PTZ\'s; the HD versions swap the cameras.',
@@ -124,5 +127,13 @@ export default {
       'The computer that drives the robot along its memorised route, spots people in the camera pictures, records the video (48 hours kept on board) and talks over Wi-Fi to the control room.',
       [['Recording', '48 h on board'], ['Link', 'Wi-Fi, 0.5 mile']],
       (b) => { b.at([0, 3.7, 3.0], () => L.pcb(b, { w: 2.4, d: 2.8 })); }),
+    P('alarm', 'Siren, strobe and intercom', 'ui', 1, 0.12, [0, 0, 0], [0, 1.6, 3.0], 'Alarm', 'named', ['smp-s5'],
+      'When the system recognises a person in the camera picture it sends an alarm to the guard station. The operator can reset it, turn on a siren or a strobe on the robot, speak through the two-way audio, and send out staff. A panic button is on the robot.',
+      [['Alarm', 'Siren · strobe'], ['Audio', 'Two-way'], ['Button', 'Panic']],
+      (b) => {
+        b.cyl(0.32, 0.32, 0.3, { m: 'red', at: [1.6, 9.5, 3.2], seg: 20 });
+        b.box(0.9, 0.5, 0.12, { m: 'dark', r: 0.05, at: [-1.6, 8.4, 4.1], rot: [-0.567, 0, 0], e: false });
+        for (let i = 0; i < 4; i++) b.cyl(0.05, 0.05, 0.04, { m: 'trim', at: [-1.9 + i * 0.25, 8.45, 4.15], rot: [-0.567, 0, 0], seg: 8, e: false });
+      }),
   ],
 };

@@ -33,8 +33,8 @@ export default {
   stats: [
     ['Robot size', '1,000 × 450 × 300 mm'],
     ['Robot weight', '33 kg'],
-    ['Ducts', '400–1,200 mm'],
-    ['Cleaning height', 'Up to 1,200 mm (lift 885 mm, 400 mm extension)'],
+    ['Ducts', '400–1,200 mm (page) · 500–1,200 mm (a picture)'],
+    ['Cleaning height', 'Up to 1,200 mm (page) · 1,185 mm (spec picture) · lift 885 mm, 400 mm extension'],
     ['Cleaning scope', '1,185 mm wide'],
     ['Work distance', '60 m (standard)'],
     ['Cameras', '3: one 6 MP for recording, two 5 MP'],
@@ -45,10 +45,10 @@ export default {
     ['Signal box', '400 × 320 × 180 mm'],
   ],
   notes: [
-    'The 1,000 × 450 × 300 mm size is RJ-Bot\'s figure for the robot folded flat. The picture, and so the model, shows the boom raised and the brush held out.',
-    'RJ-Bot says the Q50 has a 6 MP camera for recording and two 5 MP cameras, a 304 stainless steel body, a nylon brush that will not scratch the duct, and a negative-pressure dust collection at the far end of the duct.',
-    'The white funnel on the arm is read as the nozzle of the dust-blowing fan: RJ-Bot lists a blower of 240 W at 102°, but not where it sits.',
-    'The signal box and the dust collector are separate units and are not in the picture, so they are not modelled.',
+    'The 1,000 × 450 × 300 mm size is RJ-Bot\'s figure for the robot folded flat. The picture, and so the model, shows the boom raised and the brush held out; another RJ-Bot picture shows the arm standing almost upright with the brush on top.',
+    'RJ-Bot\'s sources disagree a little: the page says ducts of 400–1,200 mm and a cleaning height of 1,200 mm, a picture says 500–1,200 mm and 1,185 mm. Both are shown.',
+    'RJ-Bot labels the white nozzle on the arm a "high power fan" in its pictures: an added high-pressure airflow jetting device for enhanced cleaning. Its blower is listed at 240 W (12 V × 20 A) and 102°. It also lists imported non-slip rubber tracks, a 304 stainless steel body and a tablet control in Chinese and English.',
+    'The signal box (400 × 320 × 180 mm, with a crank for the cable) and the dust collector are separate units and are not in the picture, so they are not modelled.',
   ],
   sources: ['deck', 'rj-q50', 'rj-hvac'],
 
@@ -66,7 +66,7 @@ export default {
       (b) => { b.box(2.3, 1.4, 3.8, { m: 'steel', r: 0.08, at: [0, 1.25, 0.0] }); }),
     ...[-1, 1].map((sd) => P(sd < 0 ? 'track-r' : 'track-l', sd < 0 ? 'Right track' : 'Left track', 'drive', 2, 0.06,
       [0, 0, 0], [sd * 3.0, -0.3, 0], 'Track', 'named', ['deck', 'rj-q50'],
-      'A wedge-shaped rubber track with chevron treads on a stainless frame, with a large sprocket at the back. It climbs over the joins of a duct.',
+      'A wedge-shaped track of imported non-slip rubber with chevron treads on a stainless frame, with a large sprocket at the back. RJ-Bot says it navigates pipe obstacles without effort.',
       [['Track', 'Rubber on stainless frames']],
       (b) => {
         b.at([sd * TX, 0.05, 0], () => F.trackUnit(b, { poly: WEDGE, r: 0.3, w: TW, side: sd, cleats: 34, beltM: 'rubber', frameM: 'steel', hubM: 'silver',
@@ -108,8 +108,8 @@ export default {
         const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), BOOM_DIR), e = new THREE.Euler().setFromQuaternion(q);
         b.at([HUB.x, HUB.y, HUB.z + 0.4], () => F.bottleBrush(b, { r: 1.7, len: 2.0, rings: 14, per: 56, m: BRUSH, hubM: 'dark', thick: 0.015 }), [e.x, e.y, e.z]);
       }),
-    P('fan', 'Dust-blowing fan', 'air', 2, 0.12, [0, 0, 0], [0, 2.4, 2.2], 'Blower', 'inferred', ['rj-q50'],
-      'A fan of 240 W (12 V, 20 A) that blows the dust off the duct wall toward the vacuum at the far end. RJ-Bot gives its angle as 102°. The white funnel is where the picture shows it.',
+    P('fan', 'High-power fan', 'air', 2, 0.12, [0, 0, 0], [0, 2.4, 2.2], 'Blower', 'named', ['rj-q50', 'deck'],
+      'RJ-Bot labels it a high-power fan: an added high-pressure airflow jetting device that blows the dust off the duct wall toward the vacuum at the far end. It is 240 W (12 V, 20 A) at 102°, and it is the white funnel on the arm in the picture.',
       [['Power', '240 W (12 V × 20 A)'], ['Angle', '102°']],
       (b) => {
         b.at([0.2, 3.2, 0.9], () => {

@@ -42,12 +42,16 @@ export default {
     ['Detection', 'People to 100 m with the PTZ camera, 30 m with the panoramic ones'],
     ['Body', 'Fibreglass on a hard-anodised aluminium frame · blue, orange or green'],
     ['Link', '4G · Wi-Fi and Wi-Fi mesh · Bluetooth · radio control 915 / 434 MHz'],
+    ['Intercom', 'IP intercom · audio file playback · multi-colour beacon · alarm button'],
+    ['Navigation', 'Visual · GPS · RFID anchors for places without sky or markers · RTK base station'],
+    ['Charger', 'ACS 5 charger station: contacts rise from the ground to plates under the robot'],
   ],
   notes: [
     'The deck writes "S5.2TPZ"; SMP\'s name for the version with the pan-tilt-zoom camera is S5.2 PTZ.',
     'The S5.2 series has four versions (Promt, Picard, DJet and Kepler); they differ in their cameras, computer and Wi-Fi antennas. The size, the body and the drive are the same, and the figures here are common to all.',
+    'SMP sells the S5.2 with equipment that is not on the robot and not modelled: the ACS 5 automatic charger station (1,480 × 1,469 × 225 mm, 40 kg: contacts rise out of the ground to the plates under the robot), the BS 5 GPS base station (RTK, 10 km radius), RFID anchors (70 m range) for places without sky or markers, and a rugged remote control.',
     'SMP says the S5.2 is for professional group use: using fewer than three robots at one site makes no sense, and swarm work covers up to 100 robots.',
-    'SMP\'s brochure lists the weight of its own parts, not of the whole robot, so no weight is given.',
+    'SMP\'s brochure lists the weight of its own accessories, not of the whole robot, so no weight is given.',
   ],
   sources: ['deck', 'smp-s52', 'smp-site'],
 
@@ -89,12 +93,11 @@ export default {
         }
       }),
     P('mast', 'Mast', 'arm', 1, 0.08, [0, 0, 0], [0, 4.0, 1.2], 'Mast', 'named', ['deck', 'smp-s52'],
-      'A silver mast from the front platform that lifts the camera head to 1,670 mm. A small blue pod sits on its side.',
+      'A silver mast from the front platform that lifts the camera head to 1,670 mm.',
       [['Height', '1,670 mm (with the head)']],
       (b) => {
         b.cyl(0.58, 0.58, MASTY1 - MASTY0, { m: MASTM, at: [0, (MASTY0 + MASTY1) / 2, MASTZ], seg: 30 });
         b.cyl(0.9, 0.9, 0.3, { m: BLUE2, at: [0, MASTY0 + 0.1, MASTZ], seg: 30, e: false });
-        b.box(0.45, 1.3, 0.7, { m: BLUE2, r: 0.15, at: [0.75, 8.4, MASTZ - 0.2] });
       }),
     P('head', 'PTZ and camera head', 'sense', 1, 0.1, [0, 0, 0], [0, 4.4, 1.4], 'Camera', 'named', ['deck', 'smp-s52'],
       'A blue head at the top of the mast with a ring of panoramic cameras round it and a pan-tilt-zoom camera on top, ×20 optical zoom. SMP\'s on-board AI finds people to 100 m with it, recognises faces and staff uniforms and follows a moving person.',
@@ -120,5 +123,17 @@ export default {
       'On-board computers for the drive and the AI: the Promt and Picard versions carry an NVIDIA Jetson TX2 for video analysis, and all versions record to a 64 GB SSD. 4G, Wi-Fi mesh and Bluetooth link the robot to others and to the control room.',
       [['Video analysis', 'Jetson TX2 (Promt, Picard)'], ['Storage', '64 GB SSD']],
       (b) => { b.at([0, 4.3, -2.4], () => L.pcb(b, { w: 2.6, d: 2.8 })); }),
+    P('comm-unit', 'Communication unit (Abox 5)', 'power', 2, 0.18, [0, 0, 0], [0, -1.0, -2.8], 'Radio', 'named', ['smp-s52'],
+      'SMP\'s Abox 5 communication unit, made by SMP, inside the robot: three 10/100 Ethernet ports with PoE, short-range Wi-Fi, 4G, 3G, LTE and GSM. There is also room inside for an extra router from a local mobile operator.',
+      [['Ports', '3 × 10/100 Ethernet, PoE 24 V'], ['Radio', 'Wi-Fi · 4G · 3G · LTE · GSM']],
+      (b) => { b.at([0, 4.3, 0.8], () => b.box(2.0, 0.8, 1.6, { m: 'dark', r: 0.1 })); b.at([0, 4.75, 0.8], () => b.cyl(0.08, 0.08, 0.4, { m: 'steel', seg: 8, e: false })); }),
+    P('charge-plates', 'Charging plates', 'power', 3, 0.2, [0, 0, 0], [0, -3.0, 0], 'Charge', 'named', ['smp-s52'],
+      'Current-conducting plates on the bottom of the robot. When it stops over SMP\'s ACS 5 charger station a set of contacts rises out of the station to the plates and charges the batteries without anyone; the contacts go back down when the charge is done.',
+      [['Charger', 'ACS 5 · 48 V DC'], ['Charge', '4 h fast · 6 h normal']],
+      (b) => { for (const x of [-0.8, 0.8]) b.box(0.9, 0.06, 1.8, { m: 'copper', r: 0.02, at: [x, 2.25, 0.6], e: false }); }),
+    P('intercom', 'Intercom and alarm pod', 'ui', 1, 0.14, [0, 0, 0], [0, 2.0, 2.6], 'Intercom', 'inferred', ['smp-s52', 'deck'],
+      'A small blue pod on the side of the mast. SMP lists a panic button and a two-way audio intercom, an IP intercom and audio file playback, and a multi-colour beacon with an alarm button; the picture shows only this pod, so it is read as their place.',
+      [['Audio', 'IP intercom · file playback'], ['Button', 'Alarm']],
+      (b) => { b.box(0.45, 1.3, 0.7, { m: BLUE2, r: 0.15, at: [0.75, 8.4, MASTZ - 0.2] }); b.cyl(0.1, 0.1, 0.06, { m: 'red', rot: [0, 0, PI / 2], at: [1.0, 8.7, MASTZ - 0.2], seg: 12, e: false }); }),
   ],
 };

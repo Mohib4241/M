@@ -44,10 +44,10 @@ export default {
     ['Size', 'Not published'],
   ],
   notes: [
-    'NWS publishes no size or weight for the Guard R on the page read. The size of the model is our estimate from the picture, with the tyres taken as about 340 mm; treat it as a picture, not a measurement.',
-    'The NWS page gives no speed or runtime for the Guard R, so none is shown.',
+    'NWS publishes no size or weight for the Guard R on the page read. The size of the model is our estimate from the picture, with the tyres taken as about 340 mm; treat it as a picture, not a measurement. The NWS page gives no speed or runtime either.',
+    'NWS\'s own pictures show the Guard R in a green and white version: a white sensor head with three lenses and an amber beacon on a green body with the company badge. The picture in the product deck matches NWS\'s pictures of its "Guard RL": a teal housing with four whip antennas, a sensor mast, red-rimmed wheels in some pictures and a front charging plate. The model follows the deck\'s picture.',
     'The picture shows a teal upper housing with four whip antennas, a black chassis with a charging plate and a red beacon at the front, and a sensor mast: a camera module with two lenses and lights, a LiDAR, a flat aluminium bar and a black 360° camera on top.',
-    'What each box holds is read from the picture and NWS\'s list of sensors; NWS does not label them. NWS\'s range also has a tracked outdoor robot (Guard K) and a Guard B, which are not shown here.',
+    'What each box holds is read from the picture and NWS\'s list of sensors (360° camera, thermal imaging camera, LiDAR, geofencing, gas sensor, QR-code reading); NWS does not label them. NWS\'s range also has a tracked outdoor robot (Guard K) and a Guard B, which are not shown here.',
   ],
   sources: ['deck', 'nws-gr', 'nws-rob'],
 
