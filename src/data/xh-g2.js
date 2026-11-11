@@ -26,6 +26,7 @@ export default {
   accent: '#ffd166', accent2: '#4cc9f0',
   studio: { accent: '#b8860b', accent2: '#0a8f9c' },
   hover: 0.6,
+  dims: { l: 1205, w: 1305, h: 500 }, dimsSkip: ['cable'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0x1d2024, metalness: 0.2, roughness: 0.45 }, shellDk: { color: 0x131517, metalness: 0.25, roughness: 0.5 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Speed', '1,000 m²/h'], ['Runtime', '8 h'], ['Weight', '40 kg']],

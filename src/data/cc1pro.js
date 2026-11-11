@@ -45,6 +45,7 @@ export default {
   accent2: '#ff5a3c',
   studio: { accent: '#c8741a', accent2: '#d04a2c' },
   hover: 2.0,
+  dims: { l: 629, w: 552, h: 695 }, dimsSkip: ['side-brush', 'squeegee'],
   // slate body with a lighter side panel and a black base, as in the photograph
   mats: {
     studio: {
@@ -145,7 +146,7 @@ export default {
     // ───────────── Controls ─────────────
     {
       id: 'display', name: '10.1″ touchscreen', group: 'ui', layer: 0, delay: 0.05,
-      home: [0, (box(F, 'screen').y0 + box(F, 'screen').y1) / 2, 2.95], rot0: [-0.33, 0, 0], ex: [0, 4.0, 2.6], tag: '10.1″', conf: 'confirmed', src: ['photos', 'pbtech', 'hh'],
+      home: [0, (box(F, 'screen').y0 + box(F, 'screen').y1) / 2, 2.75], rot0: [-0.33, 0, 0], ex: [0, 4.0, 2.6], tag: '10.1″', conf: 'confirmed', src: ['photos', 'pbtech', 'hh'],
       desc: 'The big screen on the front top, tilted back and standing out from the body, 357 mm wide in PUDU\'s front picture. While it works it shows PUDU\'s two-eyed face (drawn here); staff also choose a map, a zone and a cleaning mode on it and watch progress.',
       specs: [['Screen', '10.1-inch LCD'], ['Speed setting', '0.2–1.2 m/s']],
       build(b) {
@@ -249,7 +250,7 @@ export default {
     },
     {
       id: 'drain-outlet', name: 'Drain outlet', group: 'water', layer: 2, delay: 0.1,
-      home: [-1.3, 1.25, -2.95], ex: [-2.4, -0.6, -3.2], tag: 'Hose', conf: 'named', src: ['pd-guide', 'pd-site'],
+      home: [-1.3, 1.25, -2.65], ex: [-2.4, -0.6, -3.2], tag: 'Hose', conf: 'named', src: ['pd-guide', 'pd-site'],
       desc: 'Rear drain hose that empties the dirty tank. An optional dock can drain it automatically.',
       specs: [['Dock option', 'Water refill, drainage, roller cleaning']],
       build(b) {

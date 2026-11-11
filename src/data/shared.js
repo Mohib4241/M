@@ -38,6 +38,8 @@ export const SOURCES = {
   'xh-fac':    { t: 'X-Human: K3 and J1 facade cleaning robots (product page)', u: 'https://tools.infility.cn/customer_page/facade-cleaning-robot' },
   'xh-solar':  { t: 'X-Human: G1 and G2 solar panel cleaning robots (product page)', u: 'https://tools.infility.cn/customer_page/solar-panel-cleaning-robot/' },
   'xh-site':   { t: 'X-Human: curtain wall and PV panel cleaning robots', u: 'https://x-humanbot.com/' },
+  'ut-g1':     { t: 'Unitree Robotics: G1 humanoid (parameter table)', u: 'https://www.unitree.com/g1' },
+  'ut-g1-parts': { t: 'Unitree Robotics: G1 labelled parts picture (on its G1 page)', u: 'https://www.unitree.com/g1' },
   'ut-go2-parts': { t: 'Unitree Robotics: Go2 labelled parts picture (on its Go2 page)', u: 'https://www.unitree.com/go2' },
   'ut-go2':    { t: 'Unitree Robotics: Go2 quadruped robot', u: 'https://www.unitree.com/go2' },
   'smp-s5':    { t: 'SMP Robotics: S5 PTZ security robot data sheet (2017)', u: 'https://smprobotics.com/wp-content/uploads/2017/03/smp_tds_s5_ptz_ptzhd_03_2017_07.pdf' },

@@ -76,6 +76,7 @@ export function mt1Def(max) {
     accent2: max ? '#b5e61d' : '#5fd0ff',
     studio: max ? { accent: '#c98f0a', accent2: '#6f9a12' } : { accent: '#6f9a12', accent2: '#1f86b8' },
     hover: 2.0,
+    dims: { l: 840, w: 600, h: max ? 675 : 490 }, dimsSkip: max ? ['side-brush-l', 'side-brush-r', 'beacon'] : ['side-brush-l', 'side-brush-r'],
     noDock: 'PUDU offers an Auto-Empty Station (760 × 2,010 × 680 mm, 57.8 kg) as an optional accessory that empties the bin into a site trash can; it is not modelled here.',
     mats: {
       studio: {

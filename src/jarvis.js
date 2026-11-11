@@ -4,11 +4,14 @@
 //   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
 import { BrowserTracker } from './handcam.js';
 import { Hands3D } from './hands3d.js';
+import { solvePose } from './mirror.js';
 
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
   [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
 ];
+// the body tracker's points, joined for the small preview
+const BODY_LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [0, 7], [0, 8]];
 const CMD = 'pip install mediapipe opencv-python aiohttp\npython3 jarvis.py';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -26,6 +29,12 @@ export function initJarvis({ stage, app, $ }) {
   stage.hands3d = hands3d; // exposed for debugging
   const handsBtn = $('#hands3d-btn');
   const backdropBtn = $('#backdrop-btn');
+  const mirrorBtn = $('#mirror-btn');
+  let mirrorWanted = true; // with a robot that has joints open, the camera follows your body
+  let mirroring = false;
+  let pendingPose = null;
+  let raf2 = 0;
+  let poseSeen = '';
   // Page served by jarvis.py (or any localhost server): try the Python script first.
   const local = location.protocol === 'http:' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 
@@ -60,7 +69,39 @@ export function initJarvis({ stage, app, $ }) {
     if (s === 'idle') { pyCanvas = null; pyVideo = false; stage.setBackdrop(null); backdropBtn.setAttribute('aria-pressed', 'false'); backdropBtn.disabled = true; }
     pipSrc.textContent = src ? (src === 'python' ? 'Python script' : 'this browser') : '';
     if (s !== 'running') { reticle.classList.remove('on', 'pinch'); stage._hoverAt = null; }
+    syncMirror();
   }
+
+  // Body mirror: on while hand control runs in this browser, the open robot has joints, and the button is on.
+  function syncMirror() {
+    const can = stage.posable;
+    mirrorBtn.hidden = !can;
+    const browser = !!tracker;
+    mirrorBtn.disabled = state === 'running' && !browser; // the Python script tracks hands only
+    mirrorBtn.title = mirrorBtn.disabled ? 'The body mirror uses this browser\'s camera. Open the deployed site, or stop the Python script, to use it.' : 'The robot copies your body: raise an arm and it raises its arm, turn and it turns.';
+    mirrorBtn.setAttribute('aria-pressed', String(mirrorWanted));
+    const on = state === 'running' && browser && can && mirrorWanted;
+    if (on === mirroring) return;
+    mirroring = on;
+    app.classList.toggle('mirroring', on);
+    $('#jarvis-pip .pip-head b').firstChild.textContent = on ? 'Body tracking ' : 'Hand tracking ';
+    if (tracker) tracker.setMode(on ? 'body' : 'hands').catch(() => {});
+    if (on) {
+      // face the robot, like a mirror, and stop the slow orbit
+      stage.cam.az = 0; stage.cam.el = 0.1;
+      stage.select(null);
+      if (stage.eT > 0.02) stage.setExplode(0);
+      reticle.classList.remove('on', 'pinch'); stage._hoverAt = null;
+      lastMode = ''; poseSeen = '';
+      say('Stand back so the camera sees your shoulders and arms.');
+    } else {
+      pendingPose = null;
+      stage.setPose(null);
+      if (state === 'running') { lastMode = ''; say('Show your hands.'); }
+    }
+  }
+  stage.on('robot', syncMirror);
+  mirrorBtn.addEventListener('click', () => { mirrorWanted = !mirrorWanted; syncMirror(); });
 
   const HELP = {
     remote: {
@@ -105,6 +146,7 @@ export function initJarvis({ stage, app, $ }) {
     if (ws) { try { ws.close(); } catch { /* already closed */ } }
     ws = null;
     if (tracker) { tracker.stop(); tracker = null; }
+    stage.setPose(null);
     setState('idle');
     say('');
   }
@@ -135,12 +177,13 @@ export function initJarvis({ stage, app, $ }) {
 
   async function startBrowser() {
     tracker = new BrowserTracker({
-      onMessage: (m) => { if (m.type === 'frame') queueFrame(m); else handle(m, 'browser'); },
+      onMessage: (m) => { if (m.type === 'frame') queueFrame(m); else if (m.type === 'pose') queuePose(m); else handle(m, 'browser'); },
       onStatus: say,
     });
     try {
       await tracker.start();
       setState('running', 'browser');
+      syncMirror();
       backdropBtn.disabled = false; // the browser camera can also be shown behind the robot
       say('Show your hands.');
     } catch (e) {
@@ -217,7 +260,45 @@ export function initJarvis({ stage, app, $ }) {
   function queueFrame(m) {
     pending = m;
     if (raf) return;
-    raf = requestAnimationFrame(() => { raf = 0; const f = pending; pending = null; if (f && state === 'running') frame(f); });
+    raf = requestAnimationFrame(() => { raf = 0; const f = pending; pending = null; if (f && state === 'running' && !mirroring) frame(f); });
+  }
+
+  function queuePose(m) {
+    pendingPose = m;
+    if (raf2) return;
+    raf2 = requestAnimationFrame(() => { raf2 = 0; const f = pendingPose; pendingPose = null; if (f && state === 'running' && mirroring) poseFrame(f); });
+  }
+
+  function poseFrame(m) {
+    stage.lastInput = stage.time; // keep the view still while you are in front of it
+    const rig = stage.def && stage.def.rig;
+    const pose = m.world ? solvePose(m.world, m.vis, rig ? { thigh: rig.thigh, shin: rig.shin } : {}) : null;
+    stage.setPose(pose || { yaw: 0, lift: 0, q: {} }); // nobody in view: stand at rest, still facing you
+    const seen = !pose ? 'none' : pose.seen.legs ? 'full' : pose.seen.arms[0] || pose.seen.arms[1] ? 'upper' : 'shoulders';
+    const shown = `${seen === 'none' ? 'no body' : seen === 'full' ? 'whole body' : 'upper body'}${m.fps ? ` · ${m.fps} fps` : ''}`;
+    if (shown !== lastShown) { lastShown = shown; pipMode.textContent = shown; }
+    if (seen !== poseSeen) {
+      poseSeen = seen;
+      say(seen === 'none' ? 'Step into view: the camera needs your shoulders.' : seen === 'full' ? 'Mirroring your whole body.' : seen === 'upper' ? 'Mirroring your arms and your turn. Step back to add your legs.' : 'Raise your arms into view.');
+    }
+    nframe++;
+    if (nframe % 30 === 1) accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || accent;
+    drawBody(m);
+  }
+
+  function drawBody(m) {
+    const W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = document.documentElement.dataset.look === 'holo' ? 'rgba(2,10,18,.55)' : 'rgba(14,27,38,.82)';
+    g.fillRect(0, 0, W, H);
+    if (!m.lm) return;
+    const ok = (i) => (m.vis ? m.vis[i] : 1) >= 0.5;
+    g.lineCap = 'round'; g.strokeStyle = accent; g.lineWidth = 2.5;
+    g.beginPath();
+    for (const [a, b] of BODY_LINKS) { if (!ok(a) || !ok(b)) continue; g.moveTo(m.lm[a][0] * W, m.lm[a][1] * H); g.lineTo(m.lm[b][0] * W, m.lm[b][1] * H); }
+    g.stroke();
+    g.fillStyle = '#fff';
+    for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) { if (!ok(i)) continue; g.beginPath(); g.arc(m.lm[i][0] * W, m.lm[i][1] * H, 2.6, 0, 6.3); g.fill(); }
   }
 
   function toPage(nx, ny, r = app.getBoundingClientRect()) {

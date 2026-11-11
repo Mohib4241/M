@@ -13,7 +13,7 @@ const P = (id, name, group, layer, delay, home, ex, tag, conf, src, desc, specs,
 const BRASS = { k: 'copper', id: 'g31-brass', color: 0xc9a23a, metalness: 0.9, roughness: 0.28 };
 const GREEN = { k: 'green', id: 'g31-green', color: 0x2fb35e, emissive: 0x000000 };
 
-const TX = 0.92, TW = 0.66, TL = 4.45, TH = 1.05;  // track centre, width, length (445 mm), height; 250 mm over the tracks
+const TX = 0.82, TW = 0.6, TL = 4.3, TH = 1.05;  // track centre, width, length (445 mm), height; 250 mm over the tracks
 const DECK = 1.2;                                  // top of the body
 const BOX = { y0: 1.3, y1: 2.25, z0: -1.6, z1: 0.8, hw: 0.6 }; // the housing on the deck
 
@@ -26,6 +26,7 @@ export default {
   accent: '#ffd166', accent2: '#3de0ff',
   studio: { accent: '#5b6770', accent2: '#2a9d62' },
   hover: 1.0,
+  dims: { l: 445, w: 250 }, dimsSkip: ['nozzle', 'hose', 'suction', 'handle'],
   race: false, noDock: true,
   kpis: [['Ducts', '≥ 280 mm'], ['Pressure', '200 bar'], ['Rating', 'IP65']],
   stats: [

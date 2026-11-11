@@ -41,6 +41,8 @@ export default {
   accent2: '#ffd166',
   studio: { accent: '#0a8f9c', accent2: '#c98a1a' },
   hover: 2.0,
+  dims: { l: 585, w: 445, h: 619 }, dimsSkip: ['side-brush', 'squeegee'],
+  dimsKnown: { w: 'The skirt is 484 mm wide in the maker\'s front picture, which the model follows; the published 445 mm matches the body above it.', h: 'The maker\'s picture puts the robot at about 585 mm with the LiDAR; the sheet says 619 mm.' },
   // the real unit is black, so the studio look uses black for the shell, the lid and the skirt
   mats: {
     studio: {

@@ -436,6 +436,7 @@ export class Stage {
     this._disposeAlertFx();
     this.alert = null; // the parts it pointed at are gone; setAlert again if it should carry on
     this.def = def;
+    this._rig = null; this.poseT = null; this._poseW = 0; this._yaw = 0; this._lift = 0;
     const tone = this.look === 'studio' && def.studio ? def.studio : def;
     this._setAccent(tone.accent, tone.accent2);
     this.baseY = this.look === 'studio' ? 0 : def.hover;
@@ -471,6 +472,7 @@ export class Stage {
       this.parts.push(p);
       this.partById.set(pd.id, p);
     }
+    if (def.rig) this._initRig(def.rig);
     robot.updateMatrixWorld(true);
     for (const p of this.parts) {
       const box = new THREE.Box3().setFromObject(p.b.group);
@@ -485,6 +487,8 @@ export class Stage {
       for (let k = 0; k < 8; k++) {
         p.corners.push(new THREE.Vector3(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z).sub(o));
       }
+      // a jointed part: the same corners measured from its joint, so they can turn with it
+      if (p.joint) p.cornersJ = p.corners.map((k) => k.clone().add(o).sub(robot.position).sub(p.joint.at));
       p.castOn = true;
     }
     this._floorY = 0;
@@ -924,9 +928,11 @@ export class Stage {
       for (const s of p.spinners) s.rotation.y += dt * (s.userData.spin || 1);
       for (const l of p.liquids) l.rotation.z = Math.sin(t * 1.3 + p.home.x) * 0.012;
     }
+    if (this._rig) this._applyRig(dt);
     const bob = this.look === 'studio' ? 0 : Math.sin(t * 0.9) * 0.05 * (1 - e) * (this.reduced ? 0 : 1);
     this.robot.position.y = this.baseY + bob;
     this._guideFx(dt, t);
+    if (this._rig) { this.robot.position.y += this._lift; this.robot.rotation.y = this._yaw; }
     this.robot.updateMatrixWorld(true);
 
     this._visuals(dt);
@@ -1019,6 +1025,59 @@ export class Stage {
     this.guideMat.opacity = (this.look === 'studio' ? 0.5 : 0.4) * smooth(this.e, 0.02, 0.2) * (this.groupFilter ? 0.4 : 1);
   }
 
+  // ───────────────────────── joints (a robot with `rig` can be posed) ─────────────────────────
+  // rig.joints: { name: { parent, at: [x, y, z] } } gives each joint's pivot in the rest pose; a part names
+  // its joint with `joint`. A pose is { yaw, lift, q: { name: Quaternion } }: each joint's rotation in the
+  // robot's own frame (not relative to its parent), which is what a body tracker gives.
+  _initRig(rig) {
+    const J = {};
+    const order = [];
+    const add = (name) => {
+      if (J[name]) return;
+      const d = rig.joints[name];
+      if (d.parent) add(d.parent);
+      J[name] = { name, parent: d.parent ? J[d.parent] : null, at: new THREE.Vector3(...d.at), q: new THREE.Quaternion(), pos: new THREE.Vector3(...d.at) };
+      order.push(J[name]);
+    };
+    Object.keys(rig.joints).forEach(add);
+    this._rig = { J, order };
+    for (const p of this.parts) p.joint = p.def.joint ? J[p.def.joint] : null;
+  }
+
+  /** Pose the open robot, or pass null to let it stand at rest. Ignored by robots without joints. */
+  setPose(pose) { this.poseT = this._rig ? pose : null; }
+
+  get posable() { return !!this._rig; }
+
+  _applyRig(dt) {
+    const R = this._rig, T = this.poseT;
+    // an opened robot stands at rest, so the teardown reads cleanly
+    const want = T ? 1 - smooth(this.e, 0.02, 0.22) : 0;
+    this._poseW += (want - this._poseW) * damp(dt, 6);
+    const w = this._poseW < 0.001 ? 0 : this._poseW;
+    const k = this.reduced ? 1 : damp(dt, 14);
+    let yawT = T ? T.yaw * w : 0;
+    let dy = yawT - this._yaw;
+    dy = Math.atan2(Math.sin(dy), Math.cos(dy)); // turn the short way round
+    this._yaw += dy * k;
+    this._lift += ((T ? (T.lift || 0) * w : 0) - this._lift) * k;
+    for (const j of R.order) {
+      const tq = T && T.q[j.name];
+      if (tq && w > 0) { _q.identity().slerp(tq, w); j.q.slerp(_q, k); }
+      else j.q.slerp(_ID, k);
+      if (j.parent) j.pos.copy(j.at).sub(j.parent.at).applyQuaternion(j.parent.q).add(j.parent.pos);
+      else j.pos.copy(j.at);
+    }
+    for (const p of this.parts) {
+      const j = p.joint;
+      if (!j) continue;
+      // where the part sat relative to its joint, turned with the joint, plus how far it has been pulled out
+      _w.copy(p.home).sub(j.at).applyQuaternion(j.q).add(j.pos);
+      p.root.position.x += _w.x - p.home.x; p.root.position.y += _w.y - p.home.y; p.root.position.z += _w.z - p.home.z;
+      p.root.quaternion.copy(j.q);
+    }
+  }
+
   _hoverY() { return this.robot.position.y - this.baseY; }
 
   _water(dt) {
@@ -1109,8 +1168,13 @@ export class Stage {
       if (only ? !only.includes(p) : gf && p.def.group !== gf) continue;
       if (!p.corners) continue;
       const o = p.root.getWorldPosition(_o);
-      for (const k of p.corners) {
-        _w.copy(k).add(o);
+      const jt = p.joint && p.cornersJ ? p.joint : null;
+      for (let ci = 0; ci < p.corners.length; ci++) {
+        const k = p.corners[ci];
+        if (jt) { // turned with its joint, moved out by the teardown, then placed with the robot
+          _w.copy(p.cornersJ[ci]).applyQuaternion(jt.q).add(jt.pos).addScaledVector(p.ex, p.t);
+          _w.applyMatrix4(this.robot.matrixWorld);
+        } else _w.copy(k).add(o);
         const x = _w.dot(right), y = _w.dot(up), z = _w.dot(f);
         const q = P[n] || (P[n] = [0, 0, 0]);
         q[0] = x; q[1] = y; q[2] = z; n++;
@@ -1143,7 +1207,7 @@ export class Stage {
   _camera(dt, snap = false) {
     const c = this.cam;
     const fit = this._fit();
-    let dist = fit.dist * this.userZoom;
+    let dist = fit.dist * this.userZoom * (1 + 0.12 * (this._poseW || 0)); // a posed robot moves: leave a little room
     let { x: tx, y: ty, z: tz } = fit.center;
 
     const sel = this.selected;
@@ -1195,4 +1259,5 @@ export class Stage {
 }
 
 const WHITE = new THREE.Color(1, 1, 1);
+const _q = new THREE.Quaternion(), _ID = new THREE.Quaternion();
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _o = new THREE.Vector3(), _w = new THREE.Vector3();

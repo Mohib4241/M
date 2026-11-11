@@ -28,6 +28,7 @@ export default {
   accent: '#ffd166', accent2: '#3de0ff',
   studio: { accent: '#5b6770', accent2: '#9a6b00' },
   hover: 1.0,
+  dims: { w: 450 },
   race: false, noDock: true,
   kpis: [['Ducts', '400–1,200 mm'], ['Reach', '60 m'], ['Robot', '33 kg']],
   stats: [

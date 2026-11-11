@@ -27,6 +27,7 @@ export default {
   accent: '#3de0ff', accent2: '#ffd166',
   studio: { accent: '#0a8f9c', accent2: '#c98a1a' },
   hover: 0.4,
+  dims: { l: 1372, w: 813, h: 1549 },
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0x3a3d42, metalness: 0.25, roughness: 0.5, clearcoat: 0.3 }, shellDk: { color: 0x24272b, metalness: 0.3, roughness: 0.5 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Range', '24 km'], ['Patrol', '12 h'], ['Weight', '110 kg']],

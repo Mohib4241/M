@@ -6,6 +6,7 @@ import { openRace, isRaceOpen } from './game/index.js';
 import { initInterruptions } from './interruption-ui.js';
 import { initGuides } from './guide-ui.js';
 import { initBrowser } from './browser-ui.js';
+import { solvePose, fakeBody } from './mirror.js';
 import { PROFILES, ENVIRONMENTS, CATEGORIES, isBoth } from './data/catalogue.js';
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -467,4 +468,4 @@ $('#play-btn').onclick = () => openRace(Object.fromEntries(Object.entries(ROBOTS
   onOpen: () => stage.renderer.setAnimationLoop(null),
   onClose: () => stage.renderer.setAnimationLoop((t) => stage._frame(t)),
 });
-window.__catalogue = { stage, useRobot, ROBOTS };
+window.__catalogue = { stage, useRobot, ROBOTS, mirror: { solvePose, fakeBody } };

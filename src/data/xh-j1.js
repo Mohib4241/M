@@ -16,7 +16,7 @@ const WHITE = { k: 'shell', id: 'j1-white', color: 0xf3f4f6, metalness: 0.05, ro
 const WHITE2 = { k: 'shell', id: 'j1-white2', color: 0xe4e7ea, metalness: 0.05, roughness: 0.35, clearcoat: 0.5 };
 const BLACK = { k: 'shellDk', id: 'j1-black', color: 0x131517, metalness: 0.25, roughness: 0.55 };
 const CYAN = { k: 'ledBlue', id: 'j1-cyan', color: 0x4fe6ff, emissive: 0x1fc8ff };
-const TOP = 3.0;                                      // the top of the cover (300 mm thick in all)
+const TOP = 2.82;                                     // the top of the cover (300 mm thick in all)
 
 export default {
   id: 'xh-j1',
@@ -27,6 +27,7 @@ export default {
   accent: '#4cc9f0', accent2: '#ffd166',
   studio: { accent: '#0a8f9c', accent2: '#c98a1a' },
   hover: 1.0,
+  dims: { l: 800, w: 800, h: 300 }, dimsSkip: ['umbilical', 'post'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0xf3f4f6, metalness: 0.05, roughness: 0.28, clearcoat: 0.7 }, shellDk: { color: 0x131517, metalness: 0.25, roughness: 0.55 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Speed', '432 m²/h'], ['Runtime', '8 h'], ['Height', '30 m']],

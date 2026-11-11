@@ -49,6 +49,7 @@ export default {
   accent2: '#7cf0c8',
   studio: { accent: '#6c4fd6', accent2: '#169c78' },
   hover: 2.2,
+  dims: { l: 810, w: 700, h: 1070 }, dimsSkip: ['side-brush-l', 'side-brush-r'],
   noDock: 'No dock or workstation is listed with the Omnie\'s specifications.',
   // a silver front over a dark grey rear, a black top and a black base, as in the product pictures
   mats: {

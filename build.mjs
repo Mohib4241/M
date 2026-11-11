@@ -14,7 +14,21 @@ function buildStamp() {
 const FONTS = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap';
 const fontLinks = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${FONTS}">`;
 
+// The tracking worker is bundled by itself (a classic worker, so the MediaPipe loader can use
+// importScripts) and handed to the page as text; the page starts it from a Blob.
+const workerPlugin = {
+  name: 'tracker-worker',
+  setup(b) {
+    b.onResolve({ filter: /^virtual:tracker-worker$/ }, () => ({ path: 'tracker-worker', namespace: 'tracker-worker' }));
+    b.onLoad({ filter: /.*/, namespace: 'tracker-worker' }, async () => {
+      const w = await build({ entryPoints: ['src/tracker.worker.js'], bundle: true, minify: true, format: 'iife', target: 'es2020', write: false, legalComments: 'none', logLevel: 'warning' });
+      return { contents: `export default ${JSON.stringify(w.outputFiles[0].text)};`, loader: 'js' };
+    });
+  },
+};
+
 const opts = {
+  plugins: [workerPlugin],
   entryPoints: ['src/main.js'],
   bundle: true,
   minify: true,

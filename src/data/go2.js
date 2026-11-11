@@ -17,9 +17,9 @@ const MOTOR = { k: 'metal', id: 'go2-motor', color: 0x9aa1a8, metalness: 0.75, r
 const LIGHT = { k: 'shell', id: 'go2-light', color: 0xaeb4ba, metalness: 0.15, roughness: 0.45, clearcoat: 0.35 };
 const BLK = { k: 'rubber', id: 'go2-black', color: 0x101214, roughness: 0.7 };
 
-const TORSO = { y: 3.15, hw: 1.05, h: 1.5, z0: -2.25, z1: 2.15 };
-const HIPX = 1.15, HIPZ = 2.0;                 // the hip motors sit at the torso's corners
-const LEGX = 1.75;                              // the legs stand a little outside the torso
+const TORSO = { y: 3.05, hw: 0.74, h: 1.5, z0: -2.4, z1: 2.3 };
+const HIPX = 0.8, HIPZ = 2.15;                 // the hip motors sit at the torso's corners
+const LEGX = 1.2;                              // the legs stand a little outside the torso
 
 const knee = (f) => [LEGX, 1.6, f * HIPZ - 0.8];
 const foot = (f) => [LEGX, 0.3, f * HIPZ + 0.3];
@@ -33,6 +33,7 @@ export default {
   accent: '#3de0ff', accent2: '#ffd166',
   studio: { accent: '#0a8f9c', accent2: '#c98a1a' },
   hover: 0.4,
+  dims: { l: 700, w: 310, h: 400 }, dimsSkip: ['strap'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0x868e96, metalness: 0.2, roughness: 0.45, clearcoat: 0.4 }, shellDk: { color: 0x6d757d, metalness: 0.35, roughness: 0.42, clearcoat: 0.3 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Weight', '≈ 15 kg'], ['Payload', '≈ 7 kg'], ['Torque', '≈ 45 N·m']],
@@ -68,8 +69,8 @@ export default {
       [['Material', 'Aluminium alloy + engineering plastic']],
       (b) => {
         b.box(TORSO.hw * 2, 0.9, TORSO.z1 - TORSO.z0 - 0.4, { m: GREY, r: 0.5, at: [0, TORSO.y + 0.35, (TORSO.z0 + TORSO.z1) / 2 - 0.1] });
-        b.cyl(0.25, 0.25, 0.1, { m: GREY2, at: [-0.35, TORSO.y + 0.84, 1.1], seg: 20 });
-        b.box(0.9, 0.04, 0.6, { m: GREY2, r: 0.1, at: [0.45, TORSO.y + 0.82, 0.2], e: false });
+        b.cyl(0.22, 0.22, 0.06, { m: GREY2, at: [-0.3, TORSO.y + 0.82, 1.1], seg: 20 });
+        b.box(0.6, 0.04, 0.6, { m: GREY2, r: 0.1, at: [0.3, TORSO.y + 0.82, 0.2], e: false });
       }),
     ...[-1, 1].map((sd) => P(sd < 0 ? 'side-cover-r' : 'side-cover-l', sd < 0 ? 'Right side panel' : 'Left side panel', 'shell', 0, 0.04,
       [0, 0, 0], [sd * 3.0, 0, 0], 'Panel', 'named', ['deck', 'ut-go2'],
@@ -91,13 +92,13 @@ export default {
       'The HD wide-angle camera in the nose. Unitree gives it an image transmission of 1280 × 720 with a 120° field of view, so the pictures in the app are rich and stable.',
       [['Picture', '1280 × 720'], ['Field of view', '120°']],
       (b) => {
-        b.box(0.5, 0.45, 0.12, { m: 'dark', r: 0.08, at: [-0.5, TORSO.y + 0.25, TORSO.z1 + 0.82], e: false });
-        b.cyl(0.17, 0.17, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [-0.5, TORSO.y + 0.27, TORSO.z1 + 0.9], seg: 20 });
+        b.box(0.5, 0.45, 0.12, { m: 'dark', r: 0.08, at: [-0.3, TORSO.y + 0.25, TORSO.z1 + 0.82], e: false });
+        b.cyl(0.17, 0.17, 0.06, { m: 'lens', rot: [PI / 2, 0, 0], at: [-0.3, TORSO.y + 0.27, TORSO.z1 + 0.9], seg: 20 });
       }),
     P('lamp', 'Front lamp', 'sense', 1, 0.08, [0, 0, 0], [0, 1.2, 3.4], 'Lamp', 'confirmed', ['ut-go2', 'ut-go2-parts'],
       'A lamp in the nose that "brightly lights the way ahead", so the camera can see in poor light.',
       [['Function', 'Lights the way ahead']],
-      (b) => { b.cyl(0.1, 0.1, 0.06, { m: 'lamp', rot: [PI / 2, 0, 0], at: [-0.5, TORSO.y - 0.05, TORSO.z1 + 0.88], seg: 14, e: false }); }),
+      (b) => { b.cyl(0.1, 0.1, 0.06, { m: 'lamp', rot: [PI / 2, 0, 0], at: [-0.3, TORSO.y - 0.05, TORSO.z1 + 0.88], seg: 14, e: false }); }),
     P('lidar', '4D LiDAR L2', 'sense', 1, 0.09, [0, 0, 0], [0, -0.8, 3.4], 'LiDAR', 'confirmed', ['deck', 'ut-go2', 'ut-go2-parts'],
       'Unitree\'s own 4D LiDAR L2: 360° × 96° ultra-wide scanning with a small blind spot (0.05 m minimum range), for automatic avoidance and stable operation. With the app it builds a point-cloud map of the area and the robot can follow a path across it.',
       [['Field', '360° × 96°'], ['Minimum range', '0.05 m']],
@@ -111,7 +112,7 @@ export default {
     P('tracking', 'Tracking module', 'sense', 1, 0.1, [0, 0, 0], [0, 2.0, 2.2], 'Tracking', 'confirmed', ['ut-go2', 'ut-go2-parts'],
       'The wireless vector positioning module of the Intelligent Side-follow System (ISS 2.0): the robot follows its owner, remote-controlled or by automatic tracking, over a remote range of more than 30 m. It sits at the top of the head.',
       [['System', 'ISS 2.0'], ['Range', 'Over 30 m']],
-      (b) => { b.box(0.9, 0.12, 0.5, { m: GREY2, r: 0.1, at: [0.1, TORSO.y + 0.82, 1.9], e: false }); b.cyl(0.12, 0.12, 0.06, { m: 'dark', at: [0.1, TORSO.y + 0.9, 1.9], seg: 12, e: false }); }),
+      (b) => { b.box(0.7, 0.06, 0.5, { m: GREY2, r: 0.03, at: [0.1, TORSO.y + 0.8, 1.9], e: false }); b.cyl(0.12, 0.12, 0.04, { m: 'dark', at: [0.1, TORSO.y + 0.83, 1.9], seg: 12, e: false }); }),
     P('audio', 'Intercom microphone and speaker', 'ui', 1, 0.11, [0, 0, 0], [0, 1.6, 0.6], 'Audio', 'confirmed', ['ut-go2-parts'],
       'An intercom microphone for talking to the robot without scenario limits, and a speaker for music and voice. Their openings are small holes in the shell.',
       [['Function', 'Intercom · music']],
@@ -143,12 +144,12 @@ export default {
         const K = knee(f), Fo = foot(f);
         const H = [LEGX * sd, 3.05, f * HIPZ];
         const k = [LEGX * sd, K[1], K[2]], ft = [LEGX * sd, Fo[1], Fo[2]];
-        b.at([sd * 1.55, 3.05, f * HIPZ], () => {
-          b.cyl(0.52, 0.52, 0.75, { m: GREY2, rot: [0, 0, PI / 2], seg: 30 });
-          b.cyl(0.54, 0.54, 0.08, { m: MOTOR, rot: [0, 0, PI / 2], at: [sd * 0.38, 0, 0], seg: 30, e: false });
+        b.at([sd * 1.08, 3.05, f * HIPZ], () => {
+          b.cyl(0.5, 0.5, 0.6, { m: GREY2, rot: [0, 0, PI / 2], seg: 30 });
+          b.cyl(0.52, 0.52, 0.08, { m: MOTOR, rot: [0, 0, PI / 2], at: [sd * 0.3, 0, 0], seg: 30, e: false });
         });
-        F.rod(b, H, k, 0.36, { m: LIGHT, seg: 20 });
-        b.sph(0.36, { m: LIGHT, at: k, seg: 18, e: false });
+        F.rod(b, H, k, 0.3, { m: LIGHT, seg: 20 });
+        b.sph(0.3, { m: LIGHT, at: k, seg: 18, e: false });
         F.rod(b, k, ft, 0.2, { m: LIGHT, seg: 18 });
         b.sph(0.3, { m: BLK, at: ft, seg: 16 });
       })),
@@ -159,11 +160,11 @@ export default {
     P('battery', 'Smart battery', 'power', 2, 0.1, [0, 0, 0], [0, -1.6, -2.4], 'Power', 'confirmed', ['ut-go2', 'ut-go2-parts'],
       'The smart battery, standard 8,000 mAh (about 1–2 hours) or long-endurance 15,000 mAh (about 2–4 hours), protected against over-temperature, overcharge and short circuit. It charges at 33.6 V 3.5 A, or 9 A on the fast charger.',
       [['Standard', '8,000 mAh'], ['Long-endurance', '15,000 mAh'], ['Voltage', '28–33.6 V']],
-      (b) => { b.at([0, TORSO.y - 0.15, -0.5], () => L.battery(b, { w: 1.7, h: 0.8, d: 2.6 })); }),
+      (b) => { b.at([0, TORSO.y - 0.15, -0.5], () => L.battery(b, { w: 1.2, h: 0.8, d: 2.6 })); }),
     P('controller', 'Computing core', 'power', 2, 0.12, [0, 0, 0], [0, -1.2, 2.2], 'Brain', 'confirmed', ['ut-go2', 'ut-go2-parts'],
       'The computing core: the motion controller on a high-performance ARM processor, and an upgradeable AI computing module that takes external AI processors such as Orin NX and Orin Nano. The top versions have an 8-core CPU.',
       [['Motion control', 'ARM processor'], ['AI module', 'Orin NX / Orin Nano and others']],
-      (b) => { b.at([0, TORSO.y + 0.2, 0.9], () => L.pcb(b, { w: 1.4, d: 1.6 })); }),
+      (b) => { b.at([0, TORSO.y + 0.2, 0.9], () => L.pcb(b, { w: 1.1, d: 1.6 })); }),
     P('comms', 'Wireless module', 'power', 2, 0.13, [0, 0, 0], [0, -0.8, 1.4], 'Radio', 'confirmed', ['ut-go2', 'ut-go2-parts'],
       'Wi-Fi 6 on two bands, Bluetooth 5.2 and a 4G eSIM with GPS, for a stable connection and remote control, high-definition pictures in the app and cloud updates.',
       [['Wi-Fi', 'Wi-Fi 6, dual band'], ['Cellular', '4G eSIM with GPS']],

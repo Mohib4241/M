@@ -32,6 +32,7 @@ export default {
   accent: '#4cc9f0', accent2: '#ffd166',
   studio: { accent: '#1f7fe6', accent2: '#c98a1a' },
   hover: 1.0,
+  dims: { l: 1377, w: 1000, h: 288 }, dimsSkip: ['rope'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0xf1f3f5, metalness: 0.05, roughness: 0.3, clearcoat: 0.6 }, shellDk: { color: 0x15171a, metalness: 0.3, roughness: 0.5 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Speed', '720 m²/h'], ['Runtime', '3 h'], ['Height', '600 m']],

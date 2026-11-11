@@ -56,6 +56,8 @@ export default {
   accent2: '#ffd166',
   studio: { accent: '#1f86b8', accent2: '#c08a12' },
   hover: 2.4,
+  dims: { l: 1108, w: 699, h: 1168 }, dimsSkip: ['side-brush-l', 'side-brush-r', 'dust-mop'],
+  dimsKnown: { w: 'The maker\'s front picture, which the model follows, is 790 mm wide at the foot where the bumper flares round the side brushes; the published 699 mm matches the body above it (710 mm in the model).' },
   noDock: 'No dock or workstation is listed with the Marvel\'s specifications.',
   mats: {
     studio: {

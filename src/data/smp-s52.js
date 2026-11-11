@@ -27,6 +27,7 @@ export default {
   accent: '#3de0ff', accent2: '#ffd166',
   studio: { accent: '#1c3a9c', accent2: '#c98a1a' },
   hover: 0.4,
+  dims: { l: 1420, w: 780, h: 1670 },
   race: false, noDock: true,
   kpis: [['Range', '24 km'], ['Rating', 'IP65'], ['Height', '1.67 m']],
   stats: [

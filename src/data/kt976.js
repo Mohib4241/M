@@ -10,8 +10,8 @@ import * as F from '../field.js';
 const PI = Math.PI;
 // size of the crawler: 650 × 310 × 160 mm (data sheet); the head is the front 3.9 units, the tracks the rear
 const TOP = 1.6;                  // the head's top, and the robot's height without the arm
-const TRK = { len: 2.5, h: 1.1, w: 0.9, x: 1.05, z: -1.75 };
-const HEAD = { z0: 0.1, z1: 3.55, w: 3.1, h: 1.3 };
+const TRK = { len: 2.5, h: 1.1, w: 0.9, x: 0.98, z: -1.75 };
+const HEAD = { z0: 0.1, z1: 3.4, w: 3.1, h: 1.45 };
 const DECK = { y: 1.2, z0: -3.0, z1: 0.4, hw: 0.95 };
 const AIM = new THREE.Vector3(0, Math.sin(0.5), Math.cos(0.5)); // the motor and brush point up and forward
 const TIP = [0, 2.55, 0.55];     // where the motor meets the arm
@@ -30,6 +30,7 @@ export default {
   accent: '#ffd166', accent2: '#3de0ff',
   studio: { accent: '#b8860b', accent2: '#0a8f9c' },
   hover: 1.0,
+  dims: { l: 650, w: 310, h: 160 }, dimsSkip: ['case', 'hose', 'brush', 'brush-motor', 'arm', 'cameras'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0x17191c, metalness: 0.15, roughness: 0.5, clearcoat: 0.3 }, shellDk: { color: 0x0f1113, metalness: 0.15, roughness: 0.45 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Ducts', '250–800 mm'], ['Suction', '2,000 m³/h'], ['Robot', '11 kg']],

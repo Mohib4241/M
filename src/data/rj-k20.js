@@ -27,12 +27,13 @@ export default {
   accent: '#ffd166', accent2: '#ff9f68',
   studio: { accent: '#e4511d', accent2: '#5b6770' },
   hover: 0.4,
+  dims: { l: 760, w: 345 }, dimsSkip: ['cable', 'bumper', 'aviation-plug'],
   race: false, noDock: true,
   mats: { studio: { shell: { color: 0x131517, metalness: 0.3, roughness: 0.45, clearcoat: 0.2 }, shellDk: { color: 0x0c0d0f, metalness: 0.3, roughness: 0.5 }, trim: { color: 0x2a2e33 } } },
   kpis: [['Pipes', 'DN200–2000'], ['Cable', '100 m'], ['Crawler', '19.4 kg']],
   stats: [
     ['Pipes', 'DN200–DN2000'],
-    ['Crawler size', '760 × 345 × 255 mm (10-inch wheels)'],
+    ['Crawler size', '760 × 345 × 255 mm (10-inch wheels, camera lowered)'],
     ['Crawler weight', '19.4 kg (10-inch) · 13.7 kg (4-inch)'],
     ['Drive', 'Dual-motor six-wheel drive (2026 edition)'],
     ['Obstacles', 'Up to 100 mm · slopes up to 30°'],
@@ -58,9 +59,9 @@ export default {
       'The black frame between the wheels: a flat deck with rails, carrying the camera linkage and the electronics. The crawler is 345 mm wide over its 10-inch wheels.',
       [['Size', '760 × 345 × 255 mm'], ['Weight', '19.4 kg']],
       (b) => {
-        b.box(1.5, 0.5, 5.0, { m: BLACK, r: 0.1, at: [0, DECK - 0.35, 0.0] });
-        b.box(1.7, 0.18, 3.8, { m: BLACK2, r: 0.05, at: [0, DECK + 0.0, -0.3] });
-        for (const sd of [-1, 1]) b.box(0.15, 0.5, 4.4, { m: BLACK2, r: 0.04, at: [sd * 0.85, DECK - 0.45, 0.0], e: false });
+        b.box(1.5, 0.5, 6.4, { m: BLACK, r: 0.1, at: [0, DECK - 0.35, 0.0] });
+        b.box(1.7, 0.18, 5.0, { m: BLACK2, r: 0.05, at: [0, DECK + 0.0, -0.5] });
+        for (const sd of [-1, 1]) b.box(0.15, 0.5, 5.8, { m: BLACK2, r: 0.04, at: [sd * 0.85, DECK - 0.45, 0.0], e: false });
         b.box(1.0, 0.06, 2.6, { m: 'trim', r: 0.02, at: [0, DECK + 0.12, -0.5], e: false });
       }),
     ...[-1, 1].map((sd) => P(sd < 0 ? 'wheels-r' : 'wheels-l', sd < 0 ? 'Right wheels' : 'Left wheels', 'drive', 2, 0.04,
@@ -87,16 +88,16 @@ export default {
       'A two-bar linkage with a spring that raises the camera head by up to 178 mm through an 80° swing, so the lens stays in the middle of the pipe as the crawler runs along its bottom.',
       [['Lift', '80° angle · 178 mm height']],
       (b) => {
-        F.bar(b, [0.55, DECK + 0.1, -0.6], [0.35, DECK + 1.5, 0.5], { w: 0.12, h: 0.3, m: 'silver', r: 0.03 });
-        F.bar(b, [0.55, DECK + 0.1, -1.3], [0.15, DECK + 1.6, -0.3], { w: 0.12, h: 0.3, m: 'silver', r: 0.03 });
-        b.cyl(0.22, 0.22, 0.3, { m: 'dark', rot: [0, 0, PI / 2], at: [0.45, DECK + 0.15, -1.0], seg: 16 });
-        b.cyl(0.12, 0.12, 0.35, { m: 'steel', at: [0.2, DECK + 0.65, -0.4], seg: 12, e: false });
+        F.bar(b, [0.55, DECK + 0.1, 0.2], [0.35, DECK + 1.5, 1.7], { w: 0.12, h: 0.3, m: 'silver', r: 0.03 });
+        F.bar(b, [0.55, DECK + 0.1, -0.6], [0.15, DECK + 1.6, 0.9], { w: 0.12, h: 0.3, m: 'silver', r: 0.03 });
+        b.cyl(0.22, 0.22, 0.3, { m: 'dark', rot: [0, 0, PI / 2], at: [0.45, DECK + 0.15, -0.2], seg: 16 });
+        b.cyl(0.12, 0.12, 0.35, { m: 'steel', at: [0.2, DECK + 0.65, 0.4], seg: 12, e: false });
       }),
     P('camera-head', 'Camera head', 'sense', 1, 0.06, [0, 0, 0], [0, 1.6, 3.0], 'Camera', 'named', ['deck', 'rj-k20'],
       'A black quick-release head with a 5 MP camera at the front that turns 360° round and 180° up and down, and twelve 3 W lights. It sits on a round swivel joint at the end of the linkage.',
       [['Camera', '5 MP · 360° × 180°'], ['Lights', '12 × 3 W']],
       (b) => {
-        b.at([0.0, DECK + 1.6, 1.0], () => {
+        b.at([0.0, DECK + 1.6, 2.25], () => {
           b.cyl(0.4, 0.4, 0.5, { m: 'steel', rot: [0, 0, PI / 2], at: [0.35, 0, -0.65], seg: 20 });
           b.box(1.5, 1.2, 2.2, { m: BLACK, r: 0.12, at: [-0.3, 0, 0.5] });
           b.box(1.2, 0.2, 1.6, { m: BLACK2, r: 0.03, at: [-0.3, 0.55, 0.3], e: false });
@@ -107,7 +108,7 @@ export default {
     P('rear-camera', 'Rear camera', 'sense', 1, 0.08, [0, 0, 0], [0, 1.2, -3.0], 'Camera', 'named', ['rj-k20'],
       'A fixed 5 MP camera at the back for reversing out of the pipe and for watching the cable.',
       [['Camera', '5 MP, rear']],
-      (b) => { b.at([0, DECK - 0.15, -2.55], () => b.at([0, 0, 0], () => L.camera(b, { w: 0.7, h: 0.4, d: 0.3, lens: 0.13, ring: false }), [0, PI, 0])); }),
+      (b) => { b.at([0, DECK - 0.15, -3.25], () => b.at([0, 0, 0], () => L.camera(b, { w: 0.7, h: 0.4, d: 0.3, lens: 0.13, ring: false }), [0, PI, 0])); }),
     P('bumper', 'Bumper bar and handle', 'shell', 0, 0.08, [0, 0, 0], [0, 0.8, 3.4], 'Bumper', 'named', ['deck', 'rj-k20'],
       'A long loop of stainless steel in front of the crawler that guards it against knocks and serves as a handle for lifting it into a manhole.',
       [['Material', 'Stainless steel']],
@@ -120,10 +121,10 @@ export default {
     P('cable', 'Cable', 'tether', 1, 0.1, [0, 0, 0], [0, 0, -3.0], 'Cable', 'named', ['rj-k20'],
       'The 100 m cable from the reel to the crawler, with a tensile strength of 200 kg. The reel counts out the metres with an electronic encoder.',
       [['Length', '100 m'], ['Tensile strength', '200 kg']],
-      (b) => { F.tube(b, [[0, DECK - 0.4, -2.5], [-0.6, 0.5, -3.6], [-1.8, 0.2, -5.0], [-1.0, 0.2, -6.6]], 0.14, { m: { k: 'rubber', id: 'k20-cable', color: 0x1b1e21 } }); }),
+      (b) => { F.tube(b, [[0.3, DECK - 0.3, -3.9], [-0.2, 0.5, -4.4], [-1.8, 0.2, -5.0], [-1.0, 0.2, -6.6]], 0.14, { m: { k: 'rubber', id: 'k20-cable', color: 0x1b1e21 } }); }),
     P('aviation-plug', 'Aviation plug', 'tether', 1, 0.12, [0, 0, 0], [0, 0.6, -3.4], 'Plug', 'named', ['rj-k20'],
       'The sealed round connector at the back of the crawler where the tether plugs in. RJ-Bot\'s chassis drawing calls it the aviation plug. It joins the power, the drive signals and the camera pictures to the cable.',
       [['Rating', 'IP68 crawler']],
-      (b) => { b.cyl(0.26, 0.26, 0.5, { m: 'steel', rot: [PI / 2, 0, 0], at: [0.3, DECK - 0.3, -2.7], seg: 18 }); b.cyl(0.18, 0.18, 0.3, { m: 'dark', rot: [PI / 2, 0, 0], at: [0.3, DECK - 0.3, -3.05], seg: 16, e: false }); }),
+      (b) => { b.cyl(0.26, 0.26, 0.5, { m: 'steel', rot: [PI / 2, 0, 0], at: [0.3, DECK - 0.3, -3.4], seg: 18 }); b.cyl(0.18, 0.18, 0.3, { m: 'dark', rot: [PI / 2, 0, 0], at: [0.3, DECK - 0.3, -3.75], seg: 16, e: false }); }),
   ],
 };

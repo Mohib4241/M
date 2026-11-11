@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of 19 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of 20 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). One is a humanoid, the **Unitree G1**, which copies your body in camera mode (see *Body mirror*). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -117,6 +117,33 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 
 Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on every robot, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
 
+## Body mirror (the humanoid)
+
+Open the **Unitree G1** (Humanoid robots), press **Start hand control**, and leave **Mirror me** on. The camera then follows your body instead of your hands, and the robot copies you like a mirror:
+
+- raise an arm and the arm on the same side of the screen goes up; bend your elbow and its elbow bends (up to 150°);
+- turn, and the whole robot turns with you, all the way round;
+- tilt your head or lean, and it does the same (within its limits);
+- if the camera can see your knees and ankles it copies your legs too, and lowers its hips when you bend your knees so its feet stay on the floor. At a desk, where the camera sees only your upper body, it stands and copies your arms and your turn.
+
+Switch **Mirror me** off to go back to hand gestures (pinch, orbit, open) on the humanoid. The mirror uses the camera in this browser; when the page is served by the Python script, which tracks hands only, the button says so.
+
+How it works: `src/mirror.js` turns the tracker's 33 body points into one rotation per joint (pure maths, tested in `tests/mirror.test.mjs` with made-up bodies). Anything the tracker is unsure of (visibility under 0.5) rests instead of guessing. The G1's data file gives its joints (`rig`) and each part names the joint it moves with; `Stage.setPose` moves the parts, smoothly, and puts the robot back at rest when you open it up, so the teardown stays clean. Any robot can be given a `rig` the same way.
+
+## Smooth camera mode
+
+Hand and body tracking run in a **worker**, off the page's own thread: the 3D view never waits for a model. The page sends the next camera picture only when the answer to the last one is back, so nothing queues up, and at most about 30 pictures a second are read. Measured here with a video as the webcam and the 3D view paused, the page kept 54 to 60 frames a second with tracking on; with the model on the page (how it was before) it fell to 16.
+
+- The model starts on the CPU inside the worker, which leaves the graphics chip to the 3D view. If the CPU is slow (over 55 ms a picture) it tries the graphics chip once and keeps whichever is faster.
+- Where a browser cannot run the tracker in a worker, it runs on the page at a reduced rate, leaving the view most of the time.
+- `tools/audit.mjs` lists every robot's triangle count; the heaviest is about 106,000, and finding the part under the cursor takes about 1 ms at most.
+
+## Audit against the makers' sizes
+
+`node tools/audit.mjs` measures every model's own box from its triangles and compares it with the size its maker publishes (`dims` in each data file, in millimetres). `npm test` fails if a model is more than 6% or 25 mm off. Parts that are not in a maker's measure (hoses, cables, a control case, soft brushes, a raised arm) are listed in `dimsSkip`. Where a maker's own picture and its sheet disagree and the model follows the picture, `dimsKnown` gives the reason (the Phantas skirt and height, the Marvel's foot).
+
+The first run of this audit found and fixed: the Go2 36% too wide (legs set too far out), the K20 a quarter too short, the G-31's tracks too far apart, the KT-976 and the G1 a little wide, the J1 too thick, and two CC1 Pro parts that stuck out past its published length. `node tools/audit.mjs <id>` prints the box of each part of one robot, to find what sticks out.
+
 ## Controls
 
 | Action | Mouse / trackpad | Touch |
@@ -215,6 +242,7 @@ Every robot has two labels, and a short written profile that says where it fits.
 | Duct cleaning · Grease | RJ Bots G-31 | Indoor |
 | Duct cleaning · Sewer | RJ Bots K20 | Outdoor (underground) |
 | Inspection robots | Unitree Go2 | Indoor and outdoor |
+| Humanoid robots | Unitree G1 | Indoor |
 | Security patrolling | SMP Robotics S5 PTZ (outdoor) · NWS Guard R (both) | Outdoor / both |
 | Patrolling robots | SMP Robotics S5.2 PTZ | Outdoor |
 

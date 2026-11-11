@@ -40,6 +40,10 @@ export const CATEGORIES = {
     label: 'Inspection robots',
     blurb: 'Walk a set round past plant, shafts and roofs and collect the same readings every time. Indoor and outdoor.',
   },
+  humanoid: {
+    label: 'Humanoid robots',
+    blurb: 'A robot with a body like ours: two arms, two legs and a head full of sensors. In camera mode it copies your arms and turns as you turn. Indoor.',
+  },
   security: {
     label: 'Security patrolling',
     blurb: 'Patrol a set route with cameras, send live video to a control room and raise an alert so a person can act. Outdoor yards and indoor halls.',
@@ -195,6 +199,16 @@ export const PROFILES = {
     where: 'Indoor and outdoor: plant rooms and shafts inside the building, roofs outside. A four-legged robot of about 15 kg that climbs steps of about 15 cm, walks stairs and uneven ground and carries a 4D LiDAR that maps what it passes.',
     points: ['Carries cameras along a set inspection route', 'Walks stairs and uneven ground', 'Collects the same readings on every round'],
     basis: 'The deck places it in plant rooms and shafts (indoor) and on roofs (outdoor).',
+  },
+
+  // ───────────── Humanoid robots ─────────────
+  g1: {
+    brand: 'Unitree', tab: 'G1',
+    env: ['indoor'], category: 'humanoid', kind: 'Humanoid robot',
+    line: 'Humanoid robot, 1.32 m tall and about 35 kg, with 23 to 43 joint motors.',
+    where: 'Indoor: labs, classrooms, showrooms and trials of work a person would do. It walks at 2 m/s, folds to 690 mm, carries about 2 kg an arm and runs about 2 hours on its quick-release battery. Keep a safe distance from it.',
+    points: ['23 joints: 6 a leg, 5 an arm, 1 at the waist', '3D LiDAR and depth camera in the head', 'Copies your arms and your turn in camera mode'],
+    basis: 'Unitree gives the G1 no weather rating and asks for a safe distance round it, so it is listed as indoor.',
   },
 
   // ───────────── Security patrolling ─────────────
