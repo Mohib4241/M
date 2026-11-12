@@ -89,7 +89,7 @@
     <div class="toggles" id="toggles">
       <button class="tgl jbtn" id="jarvis-btn" aria-pressed="false">Start hand control</button>
       <span id="jarvis-status" class="jstatus" aria-live="polite"></span>
-      <button class="tgl" id="mirror-btn" aria-pressed="true" hidden title="The robot copies your whole body: head, arms, hands, body, legs, feet and where you step. Start hand control first.">Track my whole body</button>
+      <button class="tgl" id="mirror-btn" aria-pressed="true" hidden title="The robot copies your whole body: head, arms, palms, every finger, body, legs, feet and where you step. Start hand control first.">Track my whole body</button>
       <button class="tgl" id="hands3d-btn" aria-pressed="true" title="Show your hands as 3D holograms in the scene">3D hands</button>
       <button class="tgl" id="backdrop-btn" aria-pressed="false" disabled title="Shows your camera behind the robot. Start hand control first.">Camera backdrop</button>
       <button class="tgl" data-opt="xray" aria-pressed="true">X-ray shell</button>
@@ -109,11 +109,12 @@
     <canvas width="240" height="170"></canvas>
     <div class="pip-head"><b>Hand tracking <small id="pip-src"></small></b><span id="pip-mode" class="mono"></span></div>
     <ul class="regions" aria-label="What the camera is following">
-      <li data-r="head">Head</li><li data-r="arms">Arms</li><li data-r="hands">Hands</li><li data-r="torso">Body</li><li data-r="legs">Legs</li><li data-r="feet">Feet</li>
+      <li data-r="head">Head</li><li data-r="arms">Arms</li><li data-r="hands">Hands</li><li data-r="fingers">Fingers</li><li data-r="torso">Body</li><li data-r="legs">Legs</li><li data-r="feet">Feet</li>
     </ul>
     <ul class="gest body-tips">
       <li><b>Head</b> look up, down, left and right, or tilt it</li>
-      <li><b>Arms and hands</b> lift, bend and turn your wrists</li>
+      <li><b>Arms</b> lift, bend and roll your forearms</li>
+      <li><b>Palms and fingers</b> show a palm, make a fist, point, pinch, fold your hands</li>
       <li><b>Body</b> turn round, lean and twist at the waist</li>
       <li><b>Legs and feet</b> lift a knee, squat, point your toes</li>
       <li><b>Step</b> sideways, closer or back and the robot steps too</li>

@@ -122,16 +122,21 @@ Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 
 Open the **Unitree G1** (Humanoid robots), press **Start hand control**, and leave **Track my whole body** on. The camera then follows your whole body instead of your hands, and the robot copies you like a mirror:
 
 - **Head:** look up, down, left or right, or tilt it to a shoulder, and its head does the same (up to 60°).
-- **Arms and hands:** raise an arm and the arm on the same side of the screen goes up; bend your elbow and its elbow bends (up to 150°); bend your wrist and its hand bends (up to 80°).
+- **Arms:** raise an arm and the arm on the same side of the screen goes up; bend your elbow and its elbow bends (up to 150°); roll your forearm and its forearm rolls.
+- **Palms and fingers:** a second tracker reads the 21 points of each hand. Show your palm and the robot shows its palm; turn it and it shows the back. Every finger is copied bone by bone: make a fist, point, pinch, spread your fingers, or fold your hands together. The wrist bends up to 92.5°, the range Unitree gives. If a hand is hidden for a moment (one hand behind the other, say), its fingers keep their shape for about a second instead of springing open.
 - **Body:** turn, and the whole robot turns with you, all the way round; lean and it leans; twist at the waist and its chest turns over its hips.
 - **Legs and feet:** each leg is followed on its own (lift a knee, step, squat), each foot points where yours points, and the hips come down when you bend both knees so the feet stay on the floor.
 - **Where you stand:** step sideways, closer or back and the robot steps the same way across the view. The place you stand in the first moment is the starting point; leave the picture for two seconds and it starts again from where you come back.
 
-The panel next to the robot shows a stick figure of what the camera sees and six lights: **Head, Arms, Hands, Body, Legs, Feet**. A light is on while that region is tracked. Whatever the camera cannot see (legs under a desk, a hand out of the picture) stands still instead of guessing, so stand back until all six are lit.
+The panel next to the robot shows a stick figure of what the camera sees and seven lights: **Head, Arms, Hands, Fingers, Body, Legs, Feet**. A light is on while that region is tracked. Whatever the camera cannot see (legs under a desk, a hand out of the picture) stands still instead of guessing, so stand back until all seven are lit.
 
 The movement is smoothed twice. The tracker's points first pass through a filter that is heavy while a point is nearly still (so the robot does not shake) and light while it moves fast (so it does not lag behind you), and a point that flickers at the edge of the picture is ridden out for a moment instead of dropping that limb. The viewer then eases every joint toward its target on each drawn frame, so the robot moves at the screen's full frame rate even when the camera is slower.
 
 Switch **Track my whole body** off to go back to hand gestures (pinch, orbit, open) on the humanoid. The tracking uses the camera in this browser; when the page is served by the Python script, which tracks hands only, the button says so.
+
+**Which hand the robot wears.** Unitree's G1 page lists the three-finger Dex3-1 (7 joints) as the G1's hand. To copy all five of your fingers the model wears Unitree's five-finger Dex5-1 (20 joints, 217.3 × 127.5 × 72.1 mm laid flat), with Unitree's joint ranges in each part's card. Unitree's Dex5-1 page does not say which robots it fits, so the catalogue marks the hand parts as *Inferred* and says so in the robot's notes.
+
+**Speed.** The body and the hands are two models. Both run in the worker, off the page. When the two together take longer than about 48 ms, the hands are read on every other picture and the body on every one, and the smoothing fills the gap.
 
 How it works: `src/mirror.js` turns the tracker's 33 body points into one rotation per joint (pure maths, tested in `tests/mirror.test.mjs` with made-up bodies). Anything the tracker is unsure of (visibility under 0.5) rests instead of guessing. The G1's data file gives its joints (`rig`) and each part names the joint it moves with; `place` and `moveFrom` turn where your trunk is in the picture, and how big it looks, into a step for the robot. `Stage.setPose` moves the parts, smoothly, and puts the robot back at rest when you open it up, so the teardown stays clean. Any robot can be given a `rig` the same way.
 

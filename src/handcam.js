@@ -146,7 +146,7 @@ export class BrowserTracker {
     const now = performance.now();
     this.ms = m.ms || 0;
     this.roundMs = now - this._sentAt;
-    if (typeof window !== 'undefined') window.__trackDbg = { where: this.where, mode: m.mode, delegate: m.delegate, ms: +this.ms.toFixed(1), grabMs: +(this.grabMs || 0).toFixed(1), roundMs: +this.roundMs.toFixed(1), fps: this.fps, error: m.error };
+    if (typeof window !== 'undefined') window.__trackDbg = { where: this.where, mode: m.mode, delegate: m.delegate, ms: +this.ms.toFixed(1), grabMs: +(this.grabMs || 0).toFixed(1), roundMs: +this.roundMs.toFixed(1), fps: this.fps, hands: m.hands3 ? m.hands3.length : m.hands ? m.hands.length : -1, error: m.error };
     if (m.delegate) this.delegate = m.delegate;
     this._fpsN++;
     if (now - this._fpsT >= 1000) { this.fps = Math.round((this._fpsN * 1000) / (now - this._fpsT)); this._fpsN = 0; this._fpsT = now; }
@@ -154,7 +154,8 @@ export class BrowserTracker {
     if (m.mode === 'body') {
       // mirror the picture points so the display reads like a mirror; world points are mirrored by the mirror maths
       const p = m.pose;
-      this.onMessage({ type: 'pose', lm: p ? p.lm.map((q) => [1 - q[0], q[1], q[2], q[3]]) : null, world: p ? p.world : null, vis: p ? p.lm.map((q) => q[3]) : null, fps: this.fps, ms: this.ms });
+      const hands = m.hands3 ? m.hands3.map((h) => ({ lm: h.lm.map((q) => [1 - q[0], q[1], q[2]]), world: h.world })) : undefined; // undefined: not read on this picture
+      this.onMessage({ type: 'pose', lm: p ? p.lm.map((q) => [1 - q[0], q[1], q[2], q[3]]) : null, world: p ? p.world : null, vis: p ? p.lm.map((q) => q[3]) : null, hands, fps: this.fps, ms: this.ms });
       return;
     }
     // mirror horizontally so moving your hand right moves the cursor right

@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { solvePose, fakeBody, place, moveFrom, Smoother } from '../src/mirror.js';
+import { solvePose, fakeBody, fakeHand, assignHands, place, moveFrom, Smoother, FINGERS } from '../src/mirror.js';
 import g1 from '../src/data/g1.js';
 
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -184,4 +184,83 @@ test('smooth: a point that flickers at the edge of view does not drop the limb',
   let v; for (let i = 0; i < 30; i++) v = sm.seen(dip, 1 / 30);
   assert.ok(v[14] < 0.2, 'a second out of view and it rests');
   assert.ok(sm.seen(vis, 1 / 30)[14] > 0.89, 'back at once when seen again');
+});
+
+const turnY = (d) => new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), (d * Math.PI) / 180);
+const PALM_L = new THREE.Vector3(-1, 0, 0); // the robot's left palm faces its body at rest
+
+test('hands: a hand at rest leaves the robot\'s hand at rest, fingers straight', () => {
+  const p = solvePose(fakeBody(), null, { hands: { L: fakeHand({ side: 'right' }), R: fakeHand({ side: 'left' }) } });
+  assert.deepEqual(p.seen.fingers, [true, true]);
+  for (const s of ['L', 'R']) {
+    assert.ok(deg(2 * Math.acos(Math.abs(p.q[`wrist${s}`].w))) < 8, `wrist${s} at rest`);
+    for (const f of ['index', 'middle', 'ring', 'little']) for (const k of [1, 2, 3]) assert.ok(dir(p.q[`${f}${s}${k}`]).y < -0.99, `${f}${s}${k} straight`);
+    assert.ok(deg(2 * Math.acos(Math.abs(p.q[`thumb${s}1`].w))) < 3, 'the thumb too');
+  }
+});
+
+test('hands: show your palm and the robot shows its palm; the forearm rolls to do it', () => {
+  // your right palm turned to face the camera
+  const p = solvePose(fakeBody(), null, { hands: { L: fakeHand({ side: 'right', turn: turnY(-90) }), R: null } });
+  assert.ok(PALM_L.clone().applyQuaternion(p.q.wristL).z > 0.95, 'the palm faces the viewer');
+  assert.ok(Math.abs(deg(2 * Math.acos(Math.abs(p.q.elbowL.w))) - 90) < 5, 'by a roll of the forearm');
+  assert.ok(dir(p.q.elbowL).y < -0.99 && dir(p.q.wristL).y < -0.95, 'which still hangs down');
+  // the back of the hand
+  const b = solvePose(fakeBody(), null, { hands: { L: fakeHand({ side: 'right', turn: turnY(90) }), R: null } });
+  assert.ok(PALM_L.clone().applyQuaternion(b.q.wristL).z < -0.95);
+  // the wrist itself bends no further than Unitree's 92.5 degrees
+  const far = solvePose(fakeBody(), null, { hands: { L: fakeHand({ side: 'right', turn: new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 2.6) }), R: null } });
+  assert.ok(deg(dir(far.q.wristL).angleTo(dir(far.q.elbowL))) <= 93, 'wrist limit');
+});
+
+test('hands: each finger curls on its own, toward the palm, and a fist closes them all', () => {
+  const p = solvePose(fakeBody(), null, { hands: { L: fakeHand({ side: 'right', curl: { index: 60 } }), R: fakeHand({ side: 'left', curl: { little: 50 } }) } });
+  const i1 = dir(p.q.indexL1), i3 = dir(p.q.indexL3);
+  assert.ok(i1.x < -0.8 && Math.abs(i1.z) < 0.1, 'the first bone bends 60 degrees toward the palm');
+  assert.ok(i3.y > 0.95, 'three bends of 60 fold the tip back up');
+  assert.ok(dir(p.q.middleL1).y < -0.99 && dir(p.q.thumbL1).angleTo(dir(solvePose(fakeBody(), null, { hands: { L: fakeHand(), R: null } }).q.thumbL1)) < 0.05, 'the others stay');
+  assert.ok(dir(p.q.littleR1).x > 0.7, 'the other hand curls toward its own palm (+X)');
+  assert.ok(dir(p.q.indexR1).y < -0.99);
+  const fist = solvePose(fakeBody(), null, { hands: { L: fakeHand({ curl: { thumb: 40, index: 85, middle: 85, ring: 85, little: 85 } }), R: null } });
+  for (const f of ['index', 'middle', 'ring', 'little']) assert.ok(dir(fist.q[`${f}L2`]).y > 0.9, `${f} folded`);
+  // a bone never bends more than about 100 degrees on the one before it
+  const over = solvePose(fakeBody(), null, { hands: { L: fakeHand({ curl: { index: 150 } }), R: null } });
+  assert.ok(deg(dir(over.q.indexL1).angleTo(dir(over.q.indexL2))) <= 100.5);
+});
+
+test('hands: fingers follow the arm, and a hand lost for a moment keeps its shape', () => {
+  const up = solvePose(fakeBody({ rightArm: 170 }), null);
+  assert.ok(dir(up.q.indexL1).y > 0.9, 'without finger points the fingers stay straight along the raised arm');
+  const a = solvePose(fakeBody(), null, { hands: { L: fakeHand({ curl: { index: 70 } }), R: null } });
+  const b = solvePose(fakeBody(), null, { hands: { L: null, R: null }, held: a.fingers });
+  assert.deepEqual(b.seen.fingers, [false, false]);
+  assert.ok(dir(b.q.indexL1).x < -0.8, 'the curl is kept');
+  const vis = Array(33).fill(1); vis[14] = 0.1;
+  const gone = solvePose(fakeBody(), vis, { hands: { L: fakeHand({ curl: { index: 70 } }), R: null } });
+  assert.ok(gone.q.indexL1 && dir(gone.q.indexL1).y < -0.99, 'an unseen arm rests, fingers and all');
+});
+
+test('hands: each tracked hand goes to the arm whose wrist it is at', () => {
+  const lm = Array.from({ length: 33 }, () => [0.5, 0.5]);
+  lm[11] = [0.6, 0.3]; lm[12] = [0.4, 0.3]; lm[15] = [0.7, 0.6]; lm[16] = [0.3, 0.6];
+  const hand = (x, y, tag) => ({ lm: Array.from({ length: 21 }, () => [x, y]), world: Array.from({ length: 21 }, () => [tag, 0, 0]) });
+  const got = assignHands(lm, null, [hand(0.71, 0.62, 1), hand(0.29, 0.61, 2)]);
+  assert.equal(got.R[0][0], 1, 'the hand at your left wrist (point 15) drives the robot\'s right');
+  assert.equal(got.L[0][0], 2);
+  assert.deepEqual(assignHands(lm, null, [hand(0.5, 0.05, 3)]), { L: null, R: null }, 'a hand nowhere near a wrist is someone else\'s');
+  const two = assignHands(lm, null, [hand(0.33, 0.6, 4), hand(0.3, 0.6, 5)]);
+  assert.equal(two.L[0][0], 5, 'two at one wrist: the nearer wins');
+  assert.equal(two.R, null);
+  assert.deepEqual(assignHands(lm, null, []), { L: null, R: null });
+});
+
+test('hands: the humanoid has three bones for each of its ten fingers', () => {
+  for (const s of ['L', 'R']) for (const f of Object.keys(FINGERS)) for (const k of [1, 2, 3]) {
+    const j = g1.rig.joints[`${f}${s}${k}`];
+    assert.ok(j, `${f}${s}${k}`);
+    assert.equal(j.parent, k === 1 ? `wrist${s}` : `${f}${s}${k - 1}`);
+  }
+  const palm = g1.parts.find((p) => p.id === 'hand-l');
+  assert.equal(palm.conf, 'inferred', 'the five-finger hand on the G1 is marked as an assumption');
+  assert.ok(g1.notes.some((n) => /Dex3-1/.test(n) && /Dex5-1/.test(n) && /assum/.test(n)), 'and the notes say which hand Unitree lists for the G1');
 });

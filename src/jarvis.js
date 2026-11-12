@@ -4,7 +4,7 @@
 //   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
 import { BrowserTracker } from './handcam.js';
 import { Hands3D } from './hands3d.js';
-import { solvePose, place, moveFrom, Smoother } from './mirror.js';
+import { solvePose, place, moveFrom, assignHands, Smoother } from './mirror.js';
 
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
@@ -15,7 +15,8 @@ const BODY_LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], 
   [15, 17], [15, 19], [17, 19], [15, 21], [16, 18], [16, 20], [18, 20], [16, 22], [27, 29], [29, 31], [27, 31], [28, 30], [30, 32], [28, 32]];
 const BODY_DOTS = [0, 7, 8, 11, 12, 13, 14, 15, 16, 19, 20, 23, 24, 25, 26, 27, 28, 31, 32];
 // the regions the body mirror follows, as shown in the panel
-const REGIONS = [['head', 'Head'], ['arms', 'Arms'], ['hands', 'Hands'], ['torso', 'Body'], ['legs', 'Legs'], ['feet', 'Feet']];
+const REGIONS = [['head', 'Head'], ['arms', 'Arms'], ['hands', 'Hands'], ['fingers', 'Fingers'], ['torso', 'Body'], ['legs', 'Legs'], ['feet', 'Feet']];
+const FINGER_LINKS = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12], [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17]];
 const CMD = 'pip install mediapipe opencv-python aiohttp\npython3 jarvis.py';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -42,6 +43,11 @@ export function initJarvis({ stage, app, $ }) {
   let placeBase = null, placeN = 0, lostAt = 0; // where you stood when the mirror began
   const smWorld = new Smoother(), smPic = new Smoother({ minCutoff: 1, beta: 3 }); // steady points in, steady robot out
   let smT = 0;
+  // each hand: its own steady points, and the shape of its fingers while the tracker loses it for a moment
+  const handSm = { L: new Smoother({ minCutoff: 1.8, beta: 8 }), R: new Smoother({ minCutoff: 1.8, beta: 8 }) };
+  const handNow = { L: null, R: null }, handAt = { L: 0, R: 0 }, heldAt = { L: 0, R: 0 }, held = { L: null, R: null };
+  let handsDrawn = [];
+  const HOLD_S = 1.2;
   const regionEls = {};
   for (const [key] of REGIONS) regionEls[key] = $(`#jarvis-pip .regions [data-r="${key}"]`);
   // Page served by jarvis.py (or any localhost server): try the Python script first.
@@ -87,7 +93,7 @@ export function initJarvis({ stage, app, $ }) {
     mirrorBtn.hidden = !can;
     const browser = !!tracker;
     mirrorBtn.disabled = state === 'running' && !browser; // the Python script tracks hands only
-    mirrorBtn.title = mirrorBtn.disabled ? 'The body mirror uses this browser\'s camera. Open the deployed site, or stop the Python script, to use it.' : 'The robot copies your whole body: head, arms, hands, body, legs, feet and where you step.';
+    mirrorBtn.title = mirrorBtn.disabled ? 'The body mirror uses this browser\'s camera. Open the deployed site, or stop the Python script, to use it.' : 'The robot copies your whole body: head, arms, palms, every finger, body, legs, feet and where you step.';
     mirrorBtn.setAttribute('aria-pressed', String(mirrorWanted));
     const on = state === 'running' && browser && can && mirrorWanted;
     if (on === mirroring) return;
@@ -101,7 +107,7 @@ export function initJarvis({ stage, app, $ }) {
       stage.select(null);
       if (stage.eT > 0.02) stage.setExplode(0);
       reticle.classList.remove('on', 'pinch'); stage._hoverAt = null;
-      lastMode = ''; poseSeen = ''; placeBase = null; placeN = 0; smWorld.reset(); smPic.reset();
+      lastMode = ''; poseSeen = ''; placeBase = null; placeN = 0; smWorld.reset(); smPic.reset(); handNow.L = handNow.R = held.L = held.R = null; handsDrawn = [];
       say('Stand back until the camera sees you from head to feet.');
     } else {
       pendingPose = null;
@@ -287,7 +293,18 @@ export function initJarvis({ stage, app, $ }) {
       m.lm = smPic.points(m.lm, t);
       m.vis = smWorld.seen(m.vis, dt);
     } else { smWorld.reset(); smPic.reset(); }
-    const pose = m.world ? solvePose(m.world, m.vis, rig ? { thigh: rig.thigh, shin: rig.shin } : {}) : null;
+    const tNow = performance.now() / 1000;
+    if (m.world && m.hands) { // a picture on which the hands were read: give each to the arm it belongs to
+      handsDrawn = m.hands;
+      const got = assignHands(m.lm, m.vis, m.hands);
+      for (const s of ['L', 'R']) {
+        if (got[s]) { handNow[s] = handSm[s].points(got[s], tNow); handAt[s] = tNow; }
+        else if (tNow - handAt[s] > 0.4) { handNow[s] = null; handSm[s].reset(); } // gone, not just skipped
+      }
+    } else if (!m.world) { handNow.L = handNow.R = null; handsDrawn = []; }
+    for (const s of ['L', 'R']) if (held[s] && tNow - heldAt[s] > HOLD_S) held[s] = null;
+    const pose = m.world ? solvePose(m.world, m.vis, { ...(rig ? { thigh: rig.thigh, shin: rig.shin } : {}), hands: handNow, held }) : null;
+    if (pose) for (const s of ['L', 'R']) if (pose.seen.fingers[s === 'L' ? 0 : 1]) { held[s] = pose.fingers[s]; heldAt[s] = tNow; }
     if (pose) {
       // where you stand: the first steady second sets the starting place, and the robot steps from there
       const vid = tracker && tracker.videoElement;
@@ -304,7 +321,7 @@ export function initJarvis({ stage, app, $ }) {
     stage.setPose(pose || { yaw: 0, lift: 0, q: {} }); // nobody in view: stand at rest, still facing you
     const s = pose && pose.seen;
     const any = (a) => a[0] || a[1];
-    const lit = { head: !!s && s.head, arms: !!s && any(s.arms), hands: !!s && any(s.hands), torso: !!s && s.torso, legs: !!s && any(s.legs), feet: !!s && any(s.feet) };
+    const lit = { head: !!s && s.head, arms: !!s && any(s.arms), hands: !!s && any(s.hands), fingers: !!s && any(s.fingers), torso: !!s && s.torso, legs: !!s && any(s.legs), feet: !!s && any(s.feet) };
     const seen = !s ? 'none' : s.all ? 'full' : !any(s.arms) ? 'shoulders' : any(s.legs) ? 'most' : 'upper';
     const key = seen + REGIONS.map(([k]) => (lit[k] ? 1 : 0)).join('');
     const count = REGIONS.filter(([k]) => lit[k]).length;
@@ -314,9 +331,9 @@ export function initJarvis({ stage, app, $ }) {
       poseSeen = key;
       for (const [k] of REGIONS) if (regionEls[k]) regionEls[k].classList.toggle('on', lit[k]);
       say(seen === 'none' ? 'Step into view: the camera needs your shoulders.'
-        : seen === 'full' ? 'Tracking your whole body: head, arms, hands, body, legs and feet.'
+        : seen === 'full' ? (lit.fingers ? 'Tracking all of you: head, arms, palms, fingers, body, legs and feet.' : 'Tracking your whole body. Show your hands to the camera to add your fingers.')
           : seen === 'shoulders' ? 'Raise your arms into view.'
-            : seen === 'upper' ? 'Tracking your head, arms and hands. Step back to add your legs and feet.'
+            : seen === 'upper' ? (lit.fingers ? 'Tracking your head, arms, palms and fingers. Step back to add your legs and feet.' : 'Tracking your head, arms and hands. Step back to add your legs and feet.')
               : 'Almost all of you. Step back a little so nothing is cut off.');
     }
     nframe++;
@@ -336,6 +353,10 @@ export function initJarvis({ stage, app, $ }) {
     for (const [a, b] of BODY_LINKS) { if (!ok(a) || !ok(b)) continue; g.moveTo(m.lm[a][0] * W, m.lm[a][1] * H); g.lineTo(m.lm[b][0] * W, m.lm[b][1] * H); }
     g.stroke();
     g.fillStyle = '#fff';
+    // the hands the finger tracker sees, finer
+    g.lineWidth = 1.2; g.beginPath();
+    for (const h of handsDrawn) for (const [a, b] of FINGER_LINKS) { g.moveTo(h.lm[a][0] * W, h.lm[a][1] * H); g.lineTo(h.lm[b][0] * W, h.lm[b][1] * H); }
+    g.stroke();
     for (const i of BODY_DOTS) { if (!ok(i)) continue; g.beginPath(); g.arc(m.lm[i][0] * W, m.lm[i][1] * H, 2.6, 0, 6.3); g.fill(); }
   }
 

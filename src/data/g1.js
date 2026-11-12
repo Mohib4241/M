@@ -26,8 +26,33 @@ const AT = {
 };
 export const THIGH = AT.hipL[1] - AT.kneeL[1], SHIN = AT.kneeL[1] - AT.ankleL[1];
 
+// The five-finger hand (Unitree Dex5-1: 217.3 × 127.5 × 72.1 mm laid flat). At rest it hangs with the palm
+// toward the body and the thumb forward. Each finger has three bones; the thumb leaves the palm at an angle.
+const HAND_X = 1.88, KNUCKLE_Y = 5.78;
+const FINGER = { // z across the palm, the knuckle's height, and the three bone lengths
+  index: { z: 0.3, y: KNUCKLE_Y, len: [0.42, 0.3, 0.26] }, middle: { z: 0.1, y: KNUCKLE_Y - 0.03, len: [0.46, 0.32, 0.27] },
+  ring: { z: -0.1, y: KNUCKLE_Y, len: [0.42, 0.3, 0.26] }, little: { z: -0.3, y: KNUCKLE_Y + 0.06, len: [0.34, 0.24, 0.22] },
+};
+const THUMB = { at: [-0.08, 6.38, 0.36], tilt: 0.75, len: [0.4, 0.32, 0.28] }; // x is toward the palm side
+const thumbDir = [0, -Math.cos(THUMB.tilt), Math.sin(THUMB.tilt)];
+const FINGER_NAMES = ['thumb', 'index', 'middle', 'ring', 'little'];
+const BONE_WORD = ['base', 'middle', 'tip'];
+/** Where bone `k` (0 to 2) of a finger starts, on the side `sd` (+1 left, -1 right). */
+function boneAt(name, k, sd) {
+  if (name === 'thumb') {
+    const run = THUMB.len.slice(0, k).reduce((a, b) => a + b, 0);
+    return [sd * (HAND_X + THUMB.at[0]), THUMB.at[1] + thumbDir[1] * run, THUMB.at[2] + thumbDir[2] * run];
+  }
+  const f = FINGER[name];
+  return [sd * HAND_X, f.y - f.len.slice(0, k).reduce((a, b) => a + b, 0), f.z];
+}
+for (const [s, sd] of [['L', 1], ['R', -1]]) for (const name of FINGER_NAMES) for (let k = 0; k < 3; k++) AT[`${name}${s}${k + 1}`] = boneAt(name, k, sd);
+const fingerJoints = {};
+for (const s of ['L', 'R']) for (const name of FINGER_NAMES) for (let k = 1; k <= 3; k++) fingerJoints[`${name}${s}${k}`] = { parent: k === 1 ? `wrist${s}` : `${name}${s}${k - 1}`, at: AT[`${name}${s}${k}`] };
+
 const P = (joint, id, name, group, layer, delay, ex, tag, conf, src, desc, specs, build) => ({ id, name, group, layer, delay, home: [0, 0, 0], ex, tag, conf, src, desc, specs, build, joint });
 const SRC = ['ut-g1', 'ut-g1-parts'];
+const HAND_SRC = ['ut-dex5', 'ut-dex3', 'ut-g1'];
 const sides = (fn) => [['L', 1, 'Left'], ['R', -1, 'Right']].map(([s, sd, word]) => fn(s, sd, word));
 
 export default {
@@ -51,7 +76,9 @@ export default {
     ['Per leg', '6: hip 3 + knee 1 + ankle 2'],
     ['Per arm', '5: shoulder 3 + elbow 2 (+ 2 at the wrist, optional)'],
     ['Waist', '1 (+ 2 optional)'],
-    ['Hands', 'Optional three-finger force-control hand Dex3-1, 7 joints'],
+    ['Hands (Unitree lists for the G1)', 'Optional three-finger force-control hand Dex3-1: 7 joints, 710 g, 33 touch sensors'],
+    ['Hands (shown here)', 'Unitree Dex5-1 five-finger hand: 20 joints (16 driven + 4), 1,100 g, 217.3 × 127.5 × 72.1 mm laid flat'],
+    ['Finger range (Dex5-1)', 'Four fingers: side swing ±22°, then 0–90°, 0–95°, 0–81° · thumb: -33.5 to 39°, 0–100°, 0–110°, 0–92°'],
     ['Knee torque', '90 N·m (G1) · 120 N·m (G1 EDU)'],
     ['Arm load', 'About 2 kg (G1) · about 3 kg (G1 EDU)'],
     ['Legs', 'Calf + thigh 0.6 m'],
@@ -68,10 +95,11 @@ export default {
     ['Warranty', '8 months (G1) · 18 months (G1 EDU)'],
   ],
   notes: [
-    'Unitree sells the G1 and the G1 EDU; the table gives both where they differ (joints, knee torque, arm load, warranty). The model shows the standard 23-joint body with plain hands.',
+    'Unitree sells the G1 and the G1 EDU; the table gives both where they differ (joints, knee torque, arm load, warranty). The model shows the standard 23-joint body.',
+    'Hands: Unitree\'s G1 page lists the three-finger Dex3-1 as the G1\'s hand option. The model wears Unitree\'s five-finger Dex5-1 instead, so that all five of your fingers can be copied in camera mode. Unitree\'s Dex5-1 page gives its size, joints and joint ranges but does not say which robots it fits, so its fit on the G1 is an assumption of this catalogue, and the shape of each finger is schematic.',
     'The part names and the two sensor models (Livox MID-360, Intel RealSense D435i) are from Unitree\'s own labelled picture of the G1.',
     'The body\'s proportions follow the published 1,320 × 450 × 200 mm and the 0.6 m of calf plus thigh; the split between thigh and shin, the arm lengths and where each motor sits are read from Unitree\'s pictures.',
-    'Whole-body tracking: with hand control running and this robot open, choose "Track my whole body". The camera then follows your body (not your hands): head (up, down, left, right, tilt), arms, wrists, the lean and twist of your body, legs and feet, and where you step. The panel lights up each region the camera can see; what it cannot see stands still.',
+    'Whole-body tracking: with hand control running and this robot open, choose "Track my whole body". The camera then follows your body and both hands: head (up, down, left, right, tilt), arms, the roll of each forearm, which way each palm faces, every finger, the lean and twist of your body, legs and feet, and where you step. The panel lights up each region the camera can see; what it cannot see stands still.',
     'Unitree asks users to keep a safe distance from the real robot and calls it a civilian robot; it gives no ingress-protection rating, so the catalogue lists it as an indoor robot.',
   ],
   sources: ['ut-g1', 'ut-g1-parts'],
@@ -83,6 +111,7 @@ export default {
       shoulderR: { parent: 'torso', at: AT.shoulderR }, elbowR: { parent: 'shoulderR', at: AT.elbowR }, wristR: { parent: 'elbowR', at: AT.wristR },
       hipL: { parent: 'pelvis', at: AT.hipL }, kneeL: { parent: 'hipL', at: AT.kneeL }, ankleL: { parent: 'kneeL', at: AT.ankleL },
       hipR: { parent: 'pelvis', at: AT.hipR }, kneeR: { parent: 'hipR', at: AT.kneeR }, ankleR: { parent: 'kneeR', at: AT.ankleR },
+      ...fingerJoints,
     },
     thigh: THIGH, shin: SHIN, trunk: AT.shoulderL[1] - AT.hipL[1],
   },
@@ -189,16 +218,34 @@ export default {
         b.box(0.56, 1.25, 0.6, { m: SHELL, r: 0.24, at: [sd * 1.88, 7.85, 0] });
         for (let i = 0; i < 3; i++) b.cyl(0.3, 0.3, 0.07, { m: BLACK, at: [sd * 1.88, 7.16 - i * 0.1, 0], seg: 20, e: false });
       })),
-    ...sides((s, sd, word) => P(`wrist${s}`, `hand-${s.toLowerCase()}`, `${word} hand`, 'arm', 1, 0.12, [sd * 3.0, -1.8, 0.6], 'Hand', 'named', SRC,
-      'A black hand. The standard G1 has plain hands; the optional Dex3-1 is a three-finger force-control hand with 7 joints (thumb 3, index 2, middle 2) and optional touch sensors.',
-      [['Option', 'Dex3-1: 7 joints, force control']],
+    ...sides((s, sd, word) => P(`wrist${s}`, `hand-${s.toLowerCase()}`, `${word} palm`, 'arm', 1, 0.12, [sd * 3.0, -1.2, 0.6], 'Hand', 'inferred', HAND_SRC,
+      'The palm of a five-finger hand, drawn after Unitree\'s Dex5-1. Unitree lists the three-finger Dex3-1 for the G1; the five-finger hand is shown so that every finger of yours can be copied, and its fit on the G1 is assumed. At rest the palm faces the body.',
+      [['Hand', 'Dex5-1: 20 joints (16 driven + 4)'], ['Size laid flat', '217.3 × 127.5 × 72.1 mm'], ['Weight', '1,100 g'], ['Touch', '94 pressure sensors on the Dex5-1P']],
       (b) => {
-        b.at([sd * 1.88, 6.3, 0], () => {
-          b.box(0.5, 0.75, 0.24, { m: BLACK, r: 0.1, at: [0, 0.2, 0] });
-          for (let i = 0; i < 4; i++) b.box(0.1, 0.62, 0.14, { m: BLACK2, r: 0.045, at: [-0.2 + i * 0.135, -0.42, 0.03], rot: [0.18, 0, 0] });
-          b.box(0.12, 0.45, 0.14, { m: BLACK2, r: 0.05, at: [-sd * 0.32, 0.05, 0.12], rot: [0.3, 0, sd * 0.5] });
-        });
+        b.cyl(0.27, 0.3, 0.2, { m: BLACK, at: [sd * HAND_X, 6.78, 0], seg: 20, e: false });
+        b.box(0.34, 0.92, 0.82, { m: BLACK, r: 0.12, at: [sd * HAND_X, 6.25, 0] });
+        b.box(0.05, 0.6, 0.56, { m: RUBBER, r: 0.02, at: [sd * (HAND_X - 0.17), 6.2, 0], e: false }); // the palm pad, on the side that faces the body
+        for (const f of Object.values(FINGER)) b.cyl(0.1, 0.1, 0.3, { m: 'metal', rot: [0, 0, PI / 2], at: [sd * HAND_X, f.y, f.z], seg: 14, e: false });
+        b.cyl(0.12, 0.12, 0.3, { m: 'metal', rot: [0, 0, PI / 2], at: [sd * (HAND_X + THUMB.at[0]), THUMB.at[1], THUMB.at[2]], seg: 14, e: false });
       })),
+    ...[['L', 1, 'Left'], ['R', -1, 'Right']].flatMap(([s, sd, word]) => FINGER_NAMES.flatMap((name, fi) => [0, 1, 2].map((k) => {
+      const thumb = name === 'thumb';
+      const len = (thumb ? THUMB : FINGER[name]).len[k], at = AT[`${name}${s}${k + 1}`];
+      const wide = (thumb ? 0.2 : name === 'little' ? 0.15 : 0.17) - k * 0.012;
+      const range = thumb ? ['-33.5 to 39° and 0–100°', '0–110°', '0–92°'][k] : ['Side swing ±22° and 0–90°', '0–95°', '0–81°, coupled to the joint before it'][k];
+      return P(`${name}${s}${k + 1}`, `${name}-${s.toLowerCase()}-${k + 1}`, `${word} ${name === 'little' ? 'little finger' : name === 'thumb' ? 'thumb' : `${name} finger`}: ${BONE_WORD[k]}`, 'arm', 2, 0.14 + fi * 0.01 + k * 0.01,
+        [sd * (2.6 + k * 0.5), -1.4 - k * 0.7, (thumb ? 1.6 : (FINGER[name].z) * 5) + 0.3], 'Finger', 'inferred', HAND_SRC,
+        `The ${BONE_WORD[k]} bone of the ${word.toLowerCase()} ${name === 'thumb' ? 'thumb' : `${name} finger`}. In camera mode it bends with the same finger of your hand. The joint ranges are Unitree's for the Dex5-1; the shape is schematic.`,
+        [['Joint range (Dex5-1)', range]],
+        (b) => {
+          const seg = () => {
+            b.box(wide, len - 0.03, wide + 0.02, { m: k === 2 ? BLACK2 : BLACK, r: 0.06, at: [0, -len / 2, 0] });
+            b.cyl(wide * 0.52, wide * 0.52, wide + 0.03, { m: 'metal', rot: [0, 0, PI / 2], at: [0, 0, 0], seg: 12, e: false });
+            if (k === 2) b.box(0.04, len * 0.5, wide * 0.8, { m: RUBBER, r: 0.015, at: [-sd * wide * 0.5, -len * 0.62, 0], e: false }); // the fingertip pad, on the palm side
+          };
+          b.at(at, seg, thumb ? [-THUMB.tilt, 0, 0] : undefined);
+        });
+    }))),
 
     // ───────────── Legs ─────────────
     ...sides((s, sd, word) => P(`hip${s}`, `hip-${s.toLowerCase()}`, `${word} hip`, 'drive', 2, 0.06, [sd * 2.6, 0.4, 1.2], 'Hip', 'confirmed', SRC,

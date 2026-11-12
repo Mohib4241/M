@@ -47,15 +47,69 @@ function within(from, to, max) {
   return to;
 }
 
+// A hand tracker's 21 points: the wrist, then four points along each finger from its base to its tip.
+export const FINGERS = { thumb: [1, 2, 3, 4], index: [5, 6, 7, 8], middle: [9, 10, 11, 12], ring: [13, 14, 15, 16], little: [17, 18, 19, 20] };
+// Where the robot's thumb points at rest, in the hand's own frame (fingers down, thumb side forward).
+export const THUMB_REST = new THREE.Vector3(0, -Math.cos(0.75), Math.sin(0.75));
+const HAND_REST = new THREE.Matrix4().makeBasis(DOWN, FWD, new THREE.Vector3().crossVectors(DOWN, FWD)); // fingers, thumb side, and across the palm
+const WRIST_MAX = rad(92.5), FINGER_MAX = rad(100);
+
+/**
+ * One hand, from its 21 points already in the robot's frame (`pts`: Vector3s). `fore` is the direction of
+ * the forearm and `qf` its rotation. Gives the roll of the forearm (`elbow`), the full turn of the hand
+ * (`wrist`: which way the palm faces and how the wrist bends, up to 92.5 degrees) and, for each finger, the
+ * rotation of its three bones in the hand's own frame (`local`), so a curl, a spread and a pinch all carry over.
+ */
+function solveHand(pts, qf) {
+  const d = pts[9].clone().sub(pts[0]);
+  const a = pts[5].clone().sub(pts[17]);
+  if (d.lengthSq() < 1e-8 || a.lengthSq() < 1e-8) return null;
+  d.normalize();
+  a.addScaledVector(d, -a.dot(d));
+  if (a.lengthSq() < 1e-8) return null;
+  a.normalize();
+  const now = new THREE.Matrix4().makeBasis(d, a, new THREE.Vector3().crossVectors(d, a));
+  const qh = new THREE.Quaternion().setFromRotationMatrix(now.multiply(HAND_REST.clone().transpose()));
+  // split the hand's turn into a roll along the forearm (the elbow's second joint) and a bend at the wrist
+  const r = qf.clone().invert().multiply(qh);
+  const twist = new THREE.Quaternion(0, r.y, 0, r.w);
+  if (twist.lengthSq() < 1e-8) twist.identity(); else twist.normalize();
+  const swing = limit(twist.clone().invert().multiply(r), WRIST_MAX);
+  const elbow = qf.clone().multiply(twist);
+  const wrist = elbow.clone().multiply(swing);
+  const inv = qh.clone().invert();
+  const local = {};
+  for (const [name, ix] of Object.entries(FINGERS)) {
+    const rest = name === 'thumb' ? THUMB_REST : DOWN;
+    let prev = rest;
+    local[name] = [0, 1, 2].map((k) => {
+      const seg = pts[ix[k + 1]].clone().sub(pts[ix[k]]);
+      if (seg.lengthSq() < 1e-10) return new THREE.Quaternion().setFromUnitVectors(rest, prev);
+      seg.normalize().applyQuaternion(inv);
+      if (k) within(prev, seg, FINGER_MAX); // a bone bends up to about 100 degrees on the one before it
+      prev = seg.clone();
+      return new THREE.Quaternion().setFromUnitVectors(rest, seg);
+    });
+  }
+  return { elbow, wrist, local };
+}
+
+/** Put a hand's fingers on the pose: each bone's rotation is the hand's turn, then its own. */
+function setFingers(q, s, wrist, local) {
+  for (const name of Object.keys(FINGERS)) for (let k = 0; k < 3; k++) q[`${name}${s}${k + 1}`] = local ? wrist.clone().multiply(local[name][k]) : wrist.clone();
+}
+
 // The nose sits in front of the ears and a little below them: this much (radians) is "looking level".
 export const NOSE_DROP = 0.2;
 
 /**
  * Rest lengths of the robot, used to keep its feet on the floor: `thigh` and `shin` in the robot's units.
  * `seen` says which regions the camera could follow this frame; the rest stand still.
+ * `hands` ({ L, R }: 21 points each, in the tracker's frame, keyed by the robot's side) adds the palms and
+ * fingers. `held` is the `fingers` of an earlier pose: a hand the tracker lost for a moment keeps its shape.
  * @returns {{ yaw: number, lift: number, q: Object<string, THREE.Quaternion>, seen: { head: boolean, torso: boolean, arms: boolean[], hands: boolean[], legs: boolean[], feet: boolean[], all: boolean } } | null}
  */
-export function solvePose(world, vis, { thigh = 3, shin = 3 } = {}) {
+export function solvePose(world, vis, { thigh = 3, shin = 3, hands: handPts = null, held = null } = {}) {
   if (!world || world.length < 29) return null;
   const ok = (i, min = SEEN) => !vis || (vis[i] ?? 1) >= min;
   if (!ok(SH_L) || !ok(SH_R)) return null; // no shoulders, no body
@@ -94,12 +148,12 @@ export function solvePose(world, vis, { thigh = 3, shin = 3 } = {}) {
   q.torso = torso;
 
   // arms: each bone points where yours points
-  const arms = [], hands = [];
+  const arms = [], hands = [], fingers = [false, false], fingerLocal = {};
   for (const s of ['L', 'R']) {
     const m = SIDE[s];
     const seen = ok(m.el);
     arms.push(seen);
-    if (!seen) { hands.push(false); q[`shoulder${s}`] = torso.clone(); q[`elbow${s}`] = torso.clone(); q[`wrist${s}`] = torso.clone(); continue; }
+    if (!seen) { hands.push(false); q[`shoulder${s}`] = torso.clone(); q[`elbow${s}`] = torso.clone(); q[`wrist${s}`] = torso.clone(); setFingers(q, s, torso, null); continue; }
     const upper = L(m.el).sub(L(m.sh)).normalize();
     const qu = new THREE.Quaternion().setFromUnitVectors(DOWN, upper);
     q[`shoulder${s}`] = qu;
@@ -116,9 +170,15 @@ export function solvePose(world, vis, { thigh = 3, shin = 3 } = {}) {
         if (hand.lengthSq() > 1e-6) qh = new THREE.Quaternion().setFromUnitVectors(DOWN, within(fore, hand.normalize(), rad(80)));
       }
     }
+    // with the hand's own 21 points: the palm's full turn and every finger
+    const hp = handPts && handPts[s];
+    const full = hp && hp.length >= 21 && ok(m.wr) ? solveHand(hp.map((p) => v(p, new THREE.Vector3()).applyQuaternion(unYaw)), qf) : null;
+    if (full) { qf = full.elbow; qh = full.wrist; fingers[s === 'L' ? 0 : 1] = true; fingerLocal[s] = full.local; }
+    else if (held && held[s]) fingerLocal[s] = held[s];
     hands.push(!!qh);
     q[`elbow${s}`] = qf;
     q[`wrist${s}`] = qh || qf.clone();
+    setFingers(q, s, q[`wrist${s}`], fingerLocal[s] || null);
   }
 
   // head: a frame from the line through the ears and the way the nose points, so it follows a look up or
@@ -148,7 +208,8 @@ export function solvePose(world, vis, { thigh = 3, shin = 3 } = {}) {
     const th = L(m.kn).sub(L(m.hip)).normalize();
     const sn = L(m.an).sub(L(m.kn)).normalize();
     const qt = limit(new THREE.Quaternion().setFromUnitVectors(DOWN, th), rad(110));
-    const qs = limit(new THREE.Quaternion().setFromUnitVectors(DOWN, sn), rad(150));
+    within(th, sn, rad(165)); // the knee bends 0 to 165 degrees, as Unitree lists
+    const qs = new THREE.Quaternion().setFromUnitVectors(DOWN, sn);
     q[`hip${s}`] = qt; q[`knee${s}`] = qs;
     // the foot: from the heel to the toes, up to 50 degrees from pointing straight ahead
     let qa = null;
@@ -165,7 +226,7 @@ export function solvePose(world, vis, { thigh = 3, shin = 3 } = {}) {
   // negative when the knees bend: the hips come down so the lower foot stays on the floor
   if (legs[0] && legs[1]) lift = -(thigh + shin) - low;
   const all = headSeen && hipsSeen && arms[0] && arms[1] && legs[0] && legs[1];
-  return { yaw, lift, q, seen: { head: headSeen, torso: hipsSeen, arms, hands, legs, feet, all } };
+  return { yaw, lift, q, fingers: fingerLocal, seen: { head: headSeen, torso: hipsSeen, arms, hands, fingers, legs, feet, all } };
 }
 
 /**
@@ -195,6 +256,31 @@ export function moveFrom(base, now, { trunk = 3, maxX = 7, maxZ = 5, range = 4 }
   // the trunk looks bigger in step with how much closer you are; `range` is how many trunk lengths away you began
   const z = dead(range * (1 - base.s / now.s), 0.12) * trunk;
   return { x: clamp(x, -maxX, maxX), z: clamp(z, -maxZ, maxZ) };
+}
+
+/**
+ * Which tracked hand belongs to which arm: each hand goes to the body wrist it is nearest to in the picture.
+ * `lm` are the body's 33 picture points and `hands` a list of { lm, world } from the hand tracker, all in
+ * the same picture (mirrored or not, as long as both are the same). Returns { L, R }: the 21 world points
+ * for the robot's left and right hand, or null. A hand further from a wrist than the shoulders are wide is not used.
+ */
+export function assignHands(lm, vis, hands) {
+  const out = { L: null, R: null };
+  if (!lm || !hands || !hands.length) return out;
+  const reach = Math.max(0.06, Math.hypot(lm[SH_L][0] - lm[SH_R][0], lm[SH_L][1] - lm[SH_R][1]));
+  const best = { L: reach, R: reach };
+  for (const h of hands) {
+    if (!h || !h.lm || !h.world) continue;
+    let side = null, near = Infinity;
+    for (const s of ['L', 'R']) {
+      const w = lm[SIDE[s].wr];
+      if (vis && (vis[SIDE[s].wr] ?? 1) < SEEN) continue;
+      const dist = Math.hypot(h.lm[0][0] - w[0], h.lm[0][1] - w[1]);
+      if (dist < near) { near = dist; side = s; }
+    }
+    if (side && near < best[side]) { best[side] = near; out[side] = h.world; }
+  }
+  return out;
 }
 
 /**
@@ -295,4 +381,30 @@ export function fakeBody({ rightArm = 0, leftArm = 0, rightElbow = 0, leftElbow 
     set(+i, x, -p[1], -z);
   }
   return W;
+}
+
+/**
+ * A made-up hand for tests and demos: 21 points in the tracker's frame for the person's `side` hand ('right'
+ * or 'left'), hanging at rest with the palm toward the body. `turn` (a THREE.Quaternion in the person's
+ * frame: x to their left, y up, z forward) turns the whole hand; `curl` gives degrees of bend per finger,
+ * at each of its three joints.
+ */
+export function fakeHand({ side = 'right', turn = null, curl = {} } = {}) {
+  const sg = side === 'right' ? 1 : -1; // the palm faces the body: +x for the right hand
+  const axis = new THREE.Vector3(0, 0, sg); // bending a finger toward the palm
+  const pts = Array.from({ length: 21 }, () => new THREE.Vector3());
+  const base = { index: [0, -0.09, 0.03], middle: [0, -0.095, 0.01], ring: [0, -0.09, -0.01], little: [0, -0.08, -0.03] };
+  const len = [0.04, 0.025, 0.022];
+  for (const [name, ix] of Object.entries(FINGERS)) {
+    const thumb = name === 'thumb';
+    let p = thumb ? new THREE.Vector3(sg * 0.01, -0.03, 0.03) : new THREE.Vector3(...base[name]);
+    let dir = thumb ? THUMB_REST.clone() : DOWN.clone();
+    pts[ix[0]].copy(p);
+    for (let k = 0; k < 3; k++) {
+      dir = dir.clone().applyAxisAngle(axis, rad(curl[name] || 0));
+      p = p.clone().addScaledVector(dir, len[k]);
+      pts[ix[k + 1]].copy(p);
+    }
+  }
+  return pts.map((p) => { if (turn) p.applyQuaternion(turn); return [p.x, -p.y, -p.z]; });
 }
