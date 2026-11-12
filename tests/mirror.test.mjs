@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { solvePose, fakeBody, place, moveFrom } from '../src/mirror.js';
+import { solvePose, fakeBody, place, moveFrom, Smoother } from '../src/mirror.js';
 import g1 from '../src/data/g1.js';
 
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -153,4 +153,35 @@ test('whole body: stepping sideways, closer and back moves the robot', () => {
   const vis = Array(33).fill(1); vis[23] = 0.1;
   assert.equal(place(pic(0.5, 0.3), vis), null, 'no trunk, no place');
   assert.deepEqual(moveFrom(base, null), { x: 0, z: 0 });
+});
+
+test('smooth: shake is taken out of a still body, and a fast move is still followed', () => {
+  // a still arm with 1 cm of tracker shake, 30 times a second
+  let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  const sm = new Smoother(); const still = fakeBody({ rightArm: 90 });
+  let rawJump = 0, outJump = 0, prevRaw = null, prevOut = null;
+  for (let i = 0; i < 90; i++) {
+    const raw = still.map((p) => p.map((c) => c + rnd() * 0.02));
+    const out = sm.points(raw, i / 30);
+    if (prevRaw && i > 30) { rawJump += Math.abs(raw[16][1] - prevRaw[16][1]); outJump += Math.abs(out[16][1] - prevOut[16][1]); }
+    prevRaw = raw; prevOut = out;
+  }
+  assert.ok(outJump < rawJump * 0.35, `shake cut to ${((outJump / rawJump) * 100).toFixed(0)}%`);
+  // then the arm goes up in a third of a second: the smoothed arm is up within a quarter second more
+  let p;
+  for (let i = 0; i < 18; i++) p = solvePose(sm.points(fakeBody({ rightArm: Math.min(170, 90 + i * 8) }), (90 + i) / 30), null);
+  assert.ok(dir(p.q.shoulderL).y > 0.9, `followed the fast move (${dir(p.q.shoulderL).y.toFixed(2)})`);
+  // a gap starts again from the new place instead of sweeping across
+  const back = sm.points(fakeBody({ leftArm: 120 }), 60);
+  assert.deepEqual(back[15], fakeBody({ leftArm: 120 })[15]);
+});
+
+test('smooth: a point that flickers at the edge of view does not drop the limb', () => {
+  const sm = new Smoother(); const vis = Array(33).fill(0.9);
+  sm.seen(vis, 0);
+  const dip = vis.slice(); dip[14] = 0.1;
+  assert.ok(sm.seen(dip, 1 / 30)[14] > 0.5, 'one bad frame is ridden out');
+  let v; for (let i = 0; i < 30; i++) v = sm.seen(dip, 1 / 30);
+  assert.ok(v[14] < 0.2, 'a second out of view and it rests');
+  assert.ok(sm.seen(vis, 1 / 30)[14] > 0.89, 'back at once when seen again');
 });

@@ -197,6 +197,58 @@ export function moveFrom(base, now, { trunk = 3, maxX = 7, maxZ = 5, range = 4 }
   return { x: clamp(x, -maxX, maxX), z: clamp(z, -maxZ, maxZ) };
 }
 
+/**
+ * Takes the shake out of the tracker's points without making the robot lag: each coordinate goes through a
+ * filter that is heavy while a point is nearly still (where shake shows) and light while it moves fast
+ * (where lag shows). How sure the tracker is of a point rises at once and falls slowly, so a limb that
+ * flickers at the edge of view does not drop to rest and jump back.
+ */
+export class Smoother {
+  constructor({ minCutoff = 1.4, beta = 5, dCutoff = 1.2, visFall = 4 } = {}) {
+    Object.assign(this, { minCutoff, beta, dCutoff, visFall });
+    this.reset();
+  }
+
+  reset() { this.x = null; this.dx = null; this.vis = null; this.t = 0; }
+
+  /** `pts`: an array of points (arrays of numbers), `t` in seconds. Returns smoothed copies. */
+  points(pts, t) {
+    if (!pts) return pts;
+    const n = pts.length, d = pts[0].length;
+    const dt = this.x && this.x.length === n * d ? t - this.t : 0;
+    if (!(dt > 0) || dt > 0.5) { // the first frame, or back after a gap: start from here
+      this.x = new Float64Array(n * d); this.dx = new Float64Array(n * d);
+      for (let i = 0; i < n; i++) for (let k = 0; k < d; k++) this.x[i * d + k] = pts[i][k];
+      this.t = t;
+      return pts.map((p) => p.slice());
+    }
+    const alpha = (cut) => { const r = 2 * Math.PI * cut * dt; return r / (r + 1); };
+    const ad = alpha(this.dCutoff), out = [];
+    for (let i = 0; i < n; i++) {
+      const o = new Array(d);
+      for (let k = 0; k < d; k++) {
+        const j = i * d + k, raw = pts[i][k];
+        const v = (raw - this.x[j]) / dt;
+        this.dx[j] += (v - this.dx[j]) * ad;
+        this.x[j] += (raw - this.x[j]) * alpha(this.minCutoff + this.beta * Math.abs(this.dx[j]));
+        o[k] = this.x[j];
+      }
+      out.push(o);
+    }
+    this.t = t;
+    return out;
+  }
+
+  /** How sure the tracker is of each point: up at once, down slowly. Call after `points` with the same `t`. */
+  seen(vis, dt) {
+    if (!vis) return vis;
+    if (!this.vis || this.vis.length !== vis.length || !(dt > 0) || dt > 0.5) { this.vis = Float64Array.from(vis); return Array.from(this.vis); }
+    const fall = Math.min(1, this.visFall * dt);
+    for (let i = 0; i < vis.length; i++) this.vis[i] = vis[i] >= this.vis[i] ? vis[i] : this.vis[i] + (vis[i] - this.vis[i]) * fall;
+    return Array.from(this.vis);
+  }
+}
+
 /** A made-up body for tests and demos: 33 points for a person facing the camera. Angles in degrees. */
 export function fakeBody({ rightArm = 0, leftArm = 0, rightElbow = 0, leftElbow = 0, rightHand = 0, leftHand = 0, turn = 0, twist = 0, squat = 0, rightLeg = 0, leftLeg = 0, rightToe = 0, leftToe = 0, headTurn = 0, headUp = 0, headTilt = 0 } = {}) {
   const W = Array.from({ length: 33 }, () => [0, 0, 0]);

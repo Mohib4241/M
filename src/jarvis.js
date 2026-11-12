@@ -4,7 +4,7 @@
 //   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
 import { BrowserTracker } from './handcam.js';
 import { Hands3D } from './hands3d.js';
-import { solvePose, place, moveFrom } from './mirror.js';
+import { solvePose, place, moveFrom, Smoother } from './mirror.js';
 
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
@@ -40,6 +40,8 @@ export function initJarvis({ stage, app, $ }) {
   let raf2 = 0;
   let poseSeen = '';
   let placeBase = null, placeN = 0, lostAt = 0; // where you stood when the mirror began
+  const smWorld = new Smoother(), smPic = new Smoother({ minCutoff: 1, beta: 3 }); // steady points in, steady robot out
+  let smT = 0;
   const regionEls = {};
   for (const [key] of REGIONS) regionEls[key] = $(`#jarvis-pip .regions [data-r="${key}"]`);
   // Page served by jarvis.py (or any localhost server): try the Python script first.
@@ -99,7 +101,7 @@ export function initJarvis({ stage, app, $ }) {
       stage.select(null);
       if (stage.eT > 0.02) stage.setExplode(0);
       reticle.classList.remove('on', 'pinch'); stage._hoverAt = null;
-      lastMode = ''; poseSeen = ''; placeBase = null; placeN = 0;
+      lastMode = ''; poseSeen = ''; placeBase = null; placeN = 0; smWorld.reset(); smPic.reset();
       say('Stand back until the camera sees you from head to feet.');
     } else {
       pendingPose = null;
@@ -279,6 +281,12 @@ export function initJarvis({ stage, app, $ }) {
   function poseFrame(m) {
     stage.lastInput = stage.time; // keep the view still while you are in front of it
     const rig = stage.def && stage.def.rig;
+    if (m.world) {
+      const t = performance.now() / 1000, dt = t - smT; smT = t;
+      m.world = smWorld.points(m.world, t);
+      m.lm = smPic.points(m.lm, t);
+      m.vis = smWorld.seen(m.vis, dt);
+    } else { smWorld.reset(); smPic.reset(); }
     const pose = m.world ? solvePose(m.world, m.vis, rig ? { thigh: rig.thigh, shin: rig.shin } : {}) : null;
     if (pose) {
       // where you stand: the first steady second sets the starting place, and the robot steps from there

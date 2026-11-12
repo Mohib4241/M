@@ -129,6 +129,8 @@ Open the **Unitree G1** (Humanoid robots), press **Start hand control**, and lea
 
 The panel next to the robot shows a stick figure of what the camera sees and six lights: **Head, Arms, Hands, Body, Legs, Feet**. A light is on while that region is tracked. Whatever the camera cannot see (legs under a desk, a hand out of the picture) stands still instead of guessing, so stand back until all six are lit.
 
+The movement is smoothed twice. The tracker's points first pass through a filter that is heavy while a point is nearly still (so the robot does not shake) and light while it moves fast (so it does not lag behind you), and a point that flickers at the edge of the picture is ridden out for a moment instead of dropping that limb. The viewer then eases every joint toward its target on each drawn frame, so the robot moves at the screen's full frame rate even when the camera is slower.
+
 Switch **Track my whole body** off to go back to hand gestures (pinch, orbit, open) on the humanoid. The tracking uses the camera in this browser; when the page is served by the Python script, which tracks hands only, the button says so.
 
 How it works: `src/mirror.js` turns the tracker's 33 body points into one rotation per joint (pure maths, tested in `tests/mirror.test.mjs` with made-up bodies). Anything the tracker is unsure of (visibility under 0.5) rests instead of guessing. The G1's data file gives its joints (`rig`) and each part names the joint it moves with; `place` and `moveFrom` turn where your trunk is in the picture, and how big it looks, into a step for the robot. `Stage.setPose` moves the parts, smoothly, and puts the robot back at rest when you open it up, so the teardown stays clean. Any robot can be given a `rig` the same way.
