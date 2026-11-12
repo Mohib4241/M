@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of 20 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). One is a humanoid, the **Unitree G1**, which copies your whole body in camera mode (see *Whole-body tracking*). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of 23 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Nine clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1**, **MT1 Max**, **MT1 Vac**, **BG1** and **BG1 Pro**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). One is a humanoid, the **Unitree G1**, which copies your whole body in camera mode (see *Whole-body tracking*). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -116,6 +116,15 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 4. The new build shows **3D hands** and **Camera backdrop** buttons in the bottom dock. Nothing 3D appears until you click **Start hand control** and allow the camera.
 
 Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on every robot, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
+
+## PUDU BG1, BG1 Pro and MT1 Vac
+
+Three more floor robots, each from PUDU's own product page:
+
+- **BG1** and **BG1 Pro** (large scrubber-dryers, 1,195 × 760 × 1,303 mm with the squeegee, about 344 kg). One builder (`src/data/bg1.js`) makes both. PUDU's two specification tables differ in three lines only, and the catalogue shows exactly those: the Pro has a 3D LiDAR (drawn on a mast, as in PUDU's pictures) and the BG1 a LiDAR (drawn under a low cap); the Pro cruises up to 1.2 m/s and the BG1 up to 1.0 m/s; and the wording of what unattended work needs. PUDU does not say how many scrubbing discs there are (two are drawn) and publishes no size for the workstation (it is not modelled).
+- **MT1 Vac** (sweeper and vacuum, 840 × 600 × 490 mm, 75 kg). PUDU gives it the MT1's size and its pictures show the MT1's body, so `src/data/mt1vac.js` takes the MT1's body and changes what differs: two suction fans, 14 L of dust bags, a 6 L trash bin, an H11 filter, a dust mop and a hand-vacuum extension. PUDU does not publish its battery capacity, so none is stated.
+
+All three race, and all three pass the size audit.
 
 ## Whole-body tracking (the humanoid)
 

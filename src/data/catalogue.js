@@ -108,6 +108,30 @@ export const PROFILES = {
     points: ['3D LiDAR perception for large, open sites', 'IP54 sealing against dust and water spray', '35 L bin and 5 to 10 h of running'],
     basis: 'PUDU titles it an outdoor and semi-outdoor 3D-perception sweeper.',
   },
+  mt1vac: {
+    brand: 'PUDU', tab: 'MT1 Vac',
+    env: ['indoor'], category: 'floor', kind: 'Robotic sweeper and vacuum',
+    line: 'AI-powered robotic sweeper and vacuum for carpet and hard floors.',
+    where: 'Indoor sites with carpet or hard floors. It tells the two apart and sets its suction and brush speed to suit, works under furniture 52 cm high and in aisles 75 cm wide, and vacuums up to 1,400 m² an hour.',
+    points: ['Two suction fans and a 55 cm suction path', '14 L of dust bags and a 6 L trash bin, kept apart', 'H11 filter (H13 optional), dust mop and hand vacuum'],
+    basis: 'PUDU describes carpet and hard floors, sofas, racks and narrow aisles, and gives it no weather rating.',
+  },
+  bg1: {
+    brand: 'PUDU', tab: 'BG1',
+    env: ['indoor'], category: 'floor', kind: 'Scrubber-dryer robot',
+    line: 'AI-native large scrubber-dryer that sweeps and scrubs in one pass.',
+    where: 'Large indoor floors. PUDU shows it in a warehouse and a factory; it needs a path at least 85 cm wide and cleans up to 2,000 m² an hour, with a ride-on mode for driving it by hand.',
+    points: ['75 L clean and 60 L waste water, up to 7.5 h', 'A scrubbing brush that reaches out to walls and shelf edges', 'LiDAR and 3D VSLAM positioning, up to 1.0 m/s'],
+    basis: 'PUDU\'s pictures show indoor industrial floors and it gives no weather rating.',
+  },
+  bg1pro: {
+    brand: 'PUDU', tab: 'BG1 Pro',
+    env: ['indoor'], category: 'floor', kind: 'Scrubber-dryer robot',
+    line: 'The BG1 with a 3D LiDAR, for big and busy sites.',
+    where: 'Large indoor floors with high ceilings, night work or interference, where PUDU says 3D sensing keeps mapping and positioning steady. It needs a path at least 85 cm wide and cleans up to 2,000 m² an hour.',
+    points: ['3D LiDAR and 3D VSLAM positioning, up to 1.2 m/s', '75 L clean and 60 L waste water, up to 7.5 h', 'A scrubbing brush that reaches out to walls and shelf edges'],
+    basis: 'PUDU\'s pictures show indoor industrial floors and it gives no weather rating.',
+  },
 
   // ───────────── Facade cleaning ─────────────
   'xh-k3': {

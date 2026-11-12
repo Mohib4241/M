@@ -53,7 +53,7 @@ function front(max) {
 }
 
 /** The definition of the MT1 (`max` false) or the MT1 Max (`max` true). */
-export function mt1Def(max) {
+export function mt1Def(max, { label } = {}) {
   const site = max ? 'pd-mt1max' : 'pd-mt1', img = max ? 'pd-mt1max-img' : 'pd-mt1-img';
   const src = max ? [site, img, 'pd-mt1max-pr', 'rl-mt1max', 'rs-mt1max', 'as-mt1max'] : [site, img, 'pd-mt1-ppt', 'pd-mt1-manual', 'rs-mt1', 'hh-mt1'];
   const name = max ? 'MT1 Max' : 'MT1';
@@ -187,8 +187,8 @@ export function mt1Def(max) {
             b.cyl(0.12, 0.12, 0.05, { m: 'steel', rot: [0, 0, PI / 2], at: [o + s * 0.05, deck - 1.5, 0.75], seg: 16, e: false });
           }
           if (max) b.box(0.14, 0.55, 1.4, { m: 'glass', r: 0.06, at: [o, deck - 0.85, -1.2], rot: [0.15, 0, 0] }); // the side camera window
-          const tex = labelTex(`PUDU ${name}`, { color: '#5d646c' });
-          b.mesh(new THREE.PlaneGeometry(2.2, 0.42), { m: { k: 'shellDk', id: 'name-' + name, map: tex, alphaTest: 0.35 }, at: [o + s * 0.01, deck - 0.95, 0.9], rot: [0, s * PI / 2, 0], e: false });
+          const tex = labelTex(label || `PUDU ${name}`, { color: '#5d646c' });
+          b.mesh(new THREE.PlaneGeometry(2.2, 0.42), { m: { k: 'shellDk', id: 'name-' + (label || name), map: tex, alphaTest: 0.35 }, at: [o + s * 0.01, deck - 0.95, 0.9], rot: [0, s * PI / 2, 0], e: false });
         },
       })),
       {
