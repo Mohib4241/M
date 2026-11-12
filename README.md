@@ -1,6 +1,6 @@
 # Catalogue
 
-A 3D teardown of 20 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). One is a humanoid, the **Unitree G1**, which copies your body in camera mode (see *Body mirror*). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
+A 3D teardown of 20 commercial and facility robots, sorted by where they work (**indoor**, **outdoor** or both) and by what they do. Six clean floors: the **Gausium Phantas**, **Omnie** and **Marvel**, and the **PUDU CC1 Pro**, **MT1** and **MT1 Max**. Thirteen come from a product deck: facade and solar cleaners, duct and pipe crawlers, an inspection robot and security patrol robots (see *Indoor, outdoor and categories* below). One is a humanoid, the **Unitree G1**, which copies your whole body in camera mode (see *Whole-body tracking*). Pinch or scroll and the robot opens up in waves (shell first, then tanks and sensors, then the deep internals) so you can look at every part, including the water tanks.
 
 Two looks, switched in the top-left panel:
 
@@ -117,18 +117,21 @@ What the build does: `npm run build` bundles the viewer into `dist/index.html` a
 
 Tests: `npm test` runs the gesture-engine tests (the same scenarios as `python3 jarvis.py --selftest`), the race logic tests (roads, driving, the front brake, the drift charge and boost, dust, the club layout, and full laps) and the interruption data tests (every alarm has a type, every type points at real parts on every robot, the counts add up), the guide tests (every step points at real parts, the jam is shown and then cleared) and the touch-control test.
 
-## Body mirror (the humanoid)
+## Whole-body tracking (the humanoid)
 
-Open the **Unitree G1** (Humanoid robots), press **Start hand control**, and leave **Mirror me** on. The camera then follows your body instead of your hands, and the robot copies you like a mirror:
+Open the **Unitree G1** (Humanoid robots), press **Start hand control**, and leave **Track my whole body** on. The camera then follows your whole body instead of your hands, and the robot copies you like a mirror:
 
-- raise an arm and the arm on the same side of the screen goes up; bend your elbow and its elbow bends (up to 150°);
-- turn, and the whole robot turns with you, all the way round;
-- tilt your head or lean, and it does the same (within its limits);
-- if the camera can see your knees and ankles it copies your legs too, and lowers its hips when you bend your knees so its feet stay on the floor. At a desk, where the camera sees only your upper body, it stands and copies your arms and your turn.
+- **Head:** look up, down, left or right, or tilt it to a shoulder, and its head does the same (up to 60°).
+- **Arms and hands:** raise an arm and the arm on the same side of the screen goes up; bend your elbow and its elbow bends (up to 150°); bend your wrist and its hand bends (up to 80°).
+- **Body:** turn, and the whole robot turns with you, all the way round; lean and it leans; twist at the waist and its chest turns over its hips.
+- **Legs and feet:** each leg is followed on its own (lift a knee, step, squat), each foot points where yours points, and the hips come down when you bend both knees so the feet stay on the floor.
+- **Where you stand:** step sideways, closer or back and the robot steps the same way across the view. The place you stand in the first moment is the starting point; leave the picture for two seconds and it starts again from where you come back.
 
-Switch **Mirror me** off to go back to hand gestures (pinch, orbit, open) on the humanoid. The mirror uses the camera in this browser; when the page is served by the Python script, which tracks hands only, the button says so.
+The panel next to the robot shows a stick figure of what the camera sees and six lights: **Head, Arms, Hands, Body, Legs, Feet**. A light is on while that region is tracked. Whatever the camera cannot see (legs under a desk, a hand out of the picture) stands still instead of guessing, so stand back until all six are lit.
 
-How it works: `src/mirror.js` turns the tracker's 33 body points into one rotation per joint (pure maths, tested in `tests/mirror.test.mjs` with made-up bodies). Anything the tracker is unsure of (visibility under 0.5) rests instead of guessing. The G1's data file gives its joints (`rig`) and each part names the joint it moves with; `Stage.setPose` moves the parts, smoothly, and puts the robot back at rest when you open it up, so the teardown stays clean. Any robot can be given a `rig` the same way.
+Switch **Track my whole body** off to go back to hand gestures (pinch, orbit, open) on the humanoid. The tracking uses the camera in this browser; when the page is served by the Python script, which tracks hands only, the button says so.
+
+How it works: `src/mirror.js` turns the tracker's 33 body points into one rotation per joint (pure maths, tested in `tests/mirror.test.mjs` with made-up bodies). Anything the tracker is unsure of (visibility under 0.5) rests instead of guessing. The G1's data file gives its joints (`rig`) and each part names the joint it moves with; `place` and `moveFrom` turn where your trunk is in the picture, and how big it looks, into a step for the robot. `Stage.setPose` moves the parts, smoothly, and puts the robot back at rest when you open it up, so the teardown stays clean. Any robot can be given a `rig` the same way.
 
 ## Smooth camera mode
 

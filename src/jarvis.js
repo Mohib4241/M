@@ -4,14 +4,18 @@
 //   - "Browser": MediaPipe running inside this tab (used on a deployed site, e.g. Render)
 import { BrowserTracker } from './handcam.js';
 import { Hands3D } from './hands3d.js';
-import { solvePose } from './mirror.js';
+import { solvePose, place, moveFrom } from './mirror.js';
 
 const HAND_LINKS = [
   [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 7], [7, 8], [5, 9], [9, 10], [10, 11], [11, 12],
   [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [17, 18], [18, 19], [19, 20], [0, 17],
 ];
 // the body tracker's points, joined for the small preview
-const BODY_LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [0, 7], [0, 8]];
+const BODY_LINKS = [[11, 12], [11, 13], [13, 15], [12, 14], [14, 16], [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [24, 26], [26, 28], [0, 7], [0, 8], [7, 8],
+  [15, 17], [15, 19], [17, 19], [15, 21], [16, 18], [16, 20], [18, 20], [16, 22], [27, 29], [29, 31], [27, 31], [28, 30], [30, 32], [28, 32]];
+const BODY_DOTS = [0, 7, 8, 11, 12, 13, 14, 15, 16, 19, 20, 23, 24, 25, 26, 27, 28, 31, 32];
+// the regions the body mirror follows, as shown in the panel
+const REGIONS = [['head', 'Head'], ['arms', 'Arms'], ['hands', 'Hands'], ['torso', 'Body'], ['legs', 'Legs'], ['feet', 'Feet']];
 const CMD = 'pip install mediapipe opencv-python aiohttp\npython3 jarvis.py';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
@@ -35,6 +39,9 @@ export function initJarvis({ stage, app, $ }) {
   let pendingPose = null;
   let raf2 = 0;
   let poseSeen = '';
+  let placeBase = null, placeN = 0, lostAt = 0; // where you stood when the mirror began
+  const regionEls = {};
+  for (const [key] of REGIONS) regionEls[key] = $(`#jarvis-pip .regions [data-r="${key}"]`);
   // Page served by jarvis.py (or any localhost server): try the Python script first.
   const local = location.protocol === 'http:' && (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
 
@@ -78,7 +85,7 @@ export function initJarvis({ stage, app, $ }) {
     mirrorBtn.hidden = !can;
     const browser = !!tracker;
     mirrorBtn.disabled = state === 'running' && !browser; // the Python script tracks hands only
-    mirrorBtn.title = mirrorBtn.disabled ? 'The body mirror uses this browser\'s camera. Open the deployed site, or stop the Python script, to use it.' : 'The robot copies your body: raise an arm and it raises its arm, turn and it turns.';
+    mirrorBtn.title = mirrorBtn.disabled ? 'The body mirror uses this browser\'s camera. Open the deployed site, or stop the Python script, to use it.' : 'The robot copies your whole body: head, arms, hands, body, legs, feet and where you step.';
     mirrorBtn.setAttribute('aria-pressed', String(mirrorWanted));
     const on = state === 'running' && browser && can && mirrorWanted;
     if (on === mirroring) return;
@@ -92,8 +99,8 @@ export function initJarvis({ stage, app, $ }) {
       stage.select(null);
       if (stage.eT > 0.02) stage.setExplode(0);
       reticle.classList.remove('on', 'pinch'); stage._hoverAt = null;
-      lastMode = ''; poseSeen = '';
-      say('Stand back so the camera sees your shoulders and arms.');
+      lastMode = ''; poseSeen = ''; placeBase = null; placeN = 0;
+      say('Stand back until the camera sees you from head to feet.');
     } else {
       pendingPose = null;
       stage.setPose(null);
@@ -273,13 +280,36 @@ export function initJarvis({ stage, app, $ }) {
     stage.lastInput = stage.time; // keep the view still while you are in front of it
     const rig = stage.def && stage.def.rig;
     const pose = m.world ? solvePose(m.world, m.vis, rig ? { thigh: rig.thigh, shin: rig.shin } : {}) : null;
+    if (pose) {
+      // where you stand: the first steady second sets the starting place, and the robot steps from there
+      const vid = tracker && tracker.videoElement;
+      const at = place(m.lm, m.vis, vid && vid.videoWidth ? vid.videoWidth / vid.videoHeight : 4 / 3);
+      if (at) {
+        lostAt = 0;
+        if (placeN < 12) { placeN++; placeBase = placeBase ? { x: placeBase.x + (at.x - placeBase.x) / placeN, s: placeBase.s + (at.s - placeBase.s) / placeN, aspect: at.aspect } : at; }
+        else pose.move = moveFrom(placeBase, at, { trunk: rig && rig.trunk ? rig.trunk : 3 });
+      } else if (placeBase) { // out of view for two seconds: start again from wherever you come back
+        if (!lostAt) lostAt = stage.time;
+        else if (stage.time - lostAt > 2) { placeBase = null; placeN = 0; }
+      }
+    }
     stage.setPose(pose || { yaw: 0, lift: 0, q: {} }); // nobody in view: stand at rest, still facing you
-    const seen = !pose ? 'none' : pose.seen.legs ? 'full' : pose.seen.arms[0] || pose.seen.arms[1] ? 'upper' : 'shoulders';
-    const shown = `${seen === 'none' ? 'no body' : seen === 'full' ? 'whole body' : 'upper body'}${m.fps ? ` · ${m.fps} fps` : ''}`;
+    const s = pose && pose.seen;
+    const any = (a) => a[0] || a[1];
+    const lit = { head: !!s && s.head, arms: !!s && any(s.arms), hands: !!s && any(s.hands), torso: !!s && s.torso, legs: !!s && any(s.legs), feet: !!s && any(s.feet) };
+    const seen = !s ? 'none' : s.all ? 'full' : !any(s.arms) ? 'shoulders' : any(s.legs) ? 'most' : 'upper';
+    const key = seen + REGIONS.map(([k]) => (lit[k] ? 1 : 0)).join('');
+    const count = REGIONS.filter(([k]) => lit[k]).length;
+    const shown = `${seen === 'none' ? 'no body' : seen === 'full' ? 'whole body' : `${count} of ${REGIONS.length}`}${m.fps ? ` · ${m.fps} fps` : ''}`;
     if (shown !== lastShown) { lastShown = shown; pipMode.textContent = shown; }
-    if (seen !== poseSeen) {
-      poseSeen = seen;
-      say(seen === 'none' ? 'Step into view: the camera needs your shoulders.' : seen === 'full' ? 'Mirroring your whole body.' : seen === 'upper' ? 'Mirroring your arms and your turn. Step back to add your legs.' : 'Raise your arms into view.');
+    if (key !== poseSeen) {
+      poseSeen = key;
+      for (const [k] of REGIONS) if (regionEls[k]) regionEls[k].classList.toggle('on', lit[k]);
+      say(seen === 'none' ? 'Step into view: the camera needs your shoulders.'
+        : seen === 'full' ? 'Tracking your whole body: head, arms, hands, body, legs and feet.'
+          : seen === 'shoulders' ? 'Raise your arms into view.'
+            : seen === 'upper' ? 'Tracking your head, arms and hands. Step back to add your legs and feet.'
+              : 'Almost all of you. Step back a little so nothing is cut off.');
     }
     nframe++;
     if (nframe % 30 === 1) accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || accent;
@@ -298,7 +328,7 @@ export function initJarvis({ stage, app, $ }) {
     for (const [a, b] of BODY_LINKS) { if (!ok(a) || !ok(b)) continue; g.moveTo(m.lm[a][0] * W, m.lm[a][1] * H); g.lineTo(m.lm[b][0] * W, m.lm[b][1] * H); }
     g.stroke();
     g.fillStyle = '#fff';
-    for (const i of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) { if (!ok(i)) continue; g.beginPath(); g.arc(m.lm[i][0] * W, m.lm[i][1] * H, 2.6, 0, 6.3); g.fill(); }
+    for (const i of BODY_DOTS) { if (!ok(i)) continue; g.beginPath(); g.arc(m.lm[i][0] * W, m.lm[i][1] * H, 2.6, 0, 6.3); g.fill(); }
   }
 
   function toPage(nx, ny, r = app.getBoundingClientRect()) {

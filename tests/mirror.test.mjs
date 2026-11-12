@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { solvePose, fakeBody } from '../src/mirror.js';
+import { solvePose, fakeBody, place, moveFrom } from '../src/mirror.js';
 import g1 from '../src/data/g1.js';
 
 const DOWN = new THREE.Vector3(0, -1, 0);
@@ -46,7 +46,7 @@ test('mirror: turning turns the robot, all the way round', () => {
 
 test('mirror: bent knees lower the hips so the feet stay on the floor', () => {
   const p = solvePose(fakeBody({ squat: 50 }), null, { thigh: 3, shin: 3 });
-  assert.ok(p.seen.legs);
+  assert.ok(p.seen.legs[0] && p.seen.legs[1]);
   assert.ok(p.lift < -0.5, `lift ${p.lift}`);
   assert.ok(Math.abs(solvePose(fakeBody(), null, { thigh: 3, shin: 3 }).lift) < 0.01);
 });
@@ -56,7 +56,8 @@ test('mirror: what the camera cannot see stays at rest', () => {
   for (const i of [25, 26, 27, 28]) vis[i] = 0.2; // legs under the desk
   vis[14] = 0.1; // your right elbow out of the picture
   const p = solvePose(fakeBody({ rightArm: 150, leftArm: 150, squat: 60 }), vis);
-  assert.equal(p.seen.legs, false);
+  assert.deepEqual(p.seen.legs, [false, false]);
+  assert.equal(p.seen.all, false);
   assert.equal(p.lift, 0);
   assert.ok(!p.q.hipL, 'no leg pose');
   assert.ok(dir(p.q.shoulderL).y < -0.9, 'the unseen arm rests');
@@ -73,4 +74,83 @@ test('mirror: the humanoid has every joint the mirror drives, and every part nam
   for (const [name, j] of Object.entries(joints)) if (j.parent) assert.ok(joints[j.parent], `${name}: unknown parent`);
   for (const part of g1.parts) assert.ok(joints[part.joint], `${part.id}: joint ${part.joint}`);
   assert.ok(Math.abs(g1.rig.thigh + g1.rig.shin - 6) < 0.01, 'calf plus thigh is 0.6 m, as Unitree lists');
+});
+
+const FWD = new THREE.Vector3(0, 0, 1), UP = new THREE.Vector3(0, 1, 0);
+const look = (q) => FWD.clone().applyQuaternion(q);
+
+test('whole body: the head looks up, down, left and right with yours, and tilts', () => {
+  assert.ok(look(solvePose(fakeBody(), null).q.head).z > 0.999, 'level at rest');
+  assert.ok(look(solvePose(fakeBody({ headUp: 30 }), null).q.head).y > 0.4, 'up');
+  assert.ok(look(solvePose(fakeBody({ headUp: -30 }), null).q.head).y < -0.4, 'down');
+  // you look to your left: the robot looks to its right (-X), the same side of the screen in a mirror
+  const l = look(solvePose(fakeBody({ headTurn: 40 }), null).q.head), r = look(solvePose(fakeBody({ headTurn: -40 }), null).q.head);
+  assert.ok(l.x < -0.5 && r.x > 0.5, `left ${l.x.toFixed(2)} right ${r.x.toFixed(2)}`);
+  const tilt = UP.clone().applyQuaternion(solvePose(fakeBody({ headTilt: 25 }), null).q.head);
+  assert.ok(tilt.x > 0.3 && tilt.y > 0.8, 'tilted toward the same side of the screen');
+  const far = solvePose(fakeBody({ headUp: 85 }), null).q.head;
+  assert.ok(deg(2 * Math.acos(Math.abs(far.w))) <= 60.5, 'never past its limit');
+  // the head still follows after you turn your body
+  assert.ok(look(solvePose(fakeBody({ turn: 50, headUp: 30 }), null).q.head).y > 0.4);
+});
+
+test('whole body: the hands bend at the wrist with yours', () => {
+  const rest = solvePose(fakeBody({ rightArm: 90 }), null);
+  assert.ok(dir(rest.q.wristL).angleTo(dir(rest.q.elbowL)) < 0.01, 'a straight wrist follows the forearm');
+  const p = solvePose(fakeBody({ rightArm: 90, rightHand: 60 }), null);
+  assert.ok(Math.abs(deg(dir(p.q.wristL).angleTo(dir(p.q.elbowL))) - 60) < 2, 'bent 60 degrees');
+  assert.ok(dir(p.q.wristL).y > 0.8, 'the hand points up');
+  assert.deepEqual(p.seen.hands, [true, true]);
+  const far = solvePose(fakeBody({ rightArm: 90, rightHand: 130 }), null);
+  assert.ok(deg(dir(far.q.wristL).angleTo(dir(far.q.elbowL))) <= 80.5, 'at most 80 degrees');
+  const vis = Array(33).fill(1); vis[18] = vis[20] = 0.1; // your right knuckles hidden
+  const hid = solvePose(fakeBody({ rightArm: 90, rightHand: 60 }), vis);
+  assert.deepEqual(hid.seen.hands, [false, true]);
+  assert.ok(dir(hid.q.wristL).angleTo(dir(hid.q.elbowL)) < 0.01, 'an unseen hand follows the forearm');
+});
+
+test('whole body: each leg and foot moves on its own', () => {
+  const p = solvePose(fakeBody({ rightLeg: 60 }), null, { thigh: 3, shin: 3 });
+  assert.ok(dir(p.q.hipL).z > 0.8, 'your right thigh swings forward: the robot\'s left');
+  assert.ok(dir(p.q.kneeL).y < -0.99, 'its shin hangs down');
+  assert.ok(dir(p.q.hipR).y < -0.99, 'the other leg stands');
+  assert.ok(Math.abs(p.lift) < 0.01, 'standing on the other leg, the hips stay up');
+  const t = solvePose(fakeBody({ rightToe: 35 }), null);
+  assert.ok(look(t.q.ankleL).x > 0.5, 'toes turned out');
+  assert.ok(look(t.q.ankleR).z > 0.999);
+  assert.deepEqual(t.seen.feet, [true, true]);
+  const vis = Array(33).fill(1); vis[26] = 0.2; // your right knee hidden
+  const one = solvePose(fakeBody({ rightLeg: 60, leftLeg: 40, squat: 30 }), vis);
+  assert.deepEqual(one.seen.legs, [false, true]);
+  assert.ok(!one.q.hipL && one.q.hipR, 'only the seen leg is posed');
+  assert.equal(one.lift, 0);
+});
+
+test('whole body: a twist at the waist turns the chest over the hips', () => {
+  const p = solvePose(fakeBody({ twist: 40 }), null);
+  const chest = look(p.q.torso), hips = Math.abs(deg(p.yaw));
+  assert.ok(Math.abs(hips - 20) < 3, `the robot turns half way (${hips.toFixed(0)})`);
+  assert.ok(Math.abs(chest.x) > 0.25, 'and the chest twists the rest');
+  assert.ok(look(p.q.pelvis).x * chest.x < 0 && Math.abs(look(p.q.pelvis).x) > 0.25, 'while the hips turn the other way under it');
+  assert.ok(Math.abs(look(solvePose(fakeBody({ turn: 70 }), null).q.pelvis).x) < 0.02, 'a plain turn leaves the hips square');
+  // without hips in view the shoulders alone give the turn
+  const vis = Array(33).fill(1); vis[23] = vis[24] = 0.1;
+  assert.ok(Math.abs(Math.abs(deg(solvePose(fakeBody({ twist: 40 }), vis).yaw)) - 40) < 2);
+});
+
+test('whole body: stepping sideways, closer and back moves the robot', () => {
+  const pic = (cx, s) => { const lm = Array.from({ length: 33 }, () => [0, 0]); lm[11] = [cx + 0.05, 0.4]; lm[12] = [cx - 0.05, 0.4]; lm[23] = [cx + 0.03, 0.4 + s]; lm[24] = [cx - 0.03, 0.4 + s]; return lm; };
+  const base = place(pic(0.5, 0.3), null);
+  assert.ok(Math.abs(base.x - 0.5) < 1e-9 && Math.abs(base.s - 0.3) < 1e-9);
+  assert.deepEqual(moveFrom(base, base), { x: 0, z: 0 });
+  assert.deepEqual(moveFrom(base, place(pic(0.51, 0.3), null)), { x: 0, z: 0 }, 'a small sway is ignored');
+  assert.ok(moveFrom(base, place(pic(0.7, 0.3), null)).x > 1, 'to the right of the picture');
+  assert.ok(moveFrom(base, place(pic(0.3, 0.3), null)).x < -1);
+  assert.ok(moveFrom(base, place(pic(0.5, 0.45), null)).z > 1, 'closer: toward the viewer');
+  assert.ok(moveFrom(base, place(pic(0.5, 0.2), null)).z < -1, 'further: away');
+  const far = moveFrom(base, place(pic(0.99, 0.9), null));
+  assert.ok(far.x <= 7 && far.z <= 5, 'never off the floor');
+  const vis = Array(33).fill(1); vis[23] = 0.1;
+  assert.equal(place(pic(0.5, 0.3), vis), null, 'no trunk, no place');
+  assert.deepEqual(moveFrom(base, null), { x: 0, z: 0 });
 });

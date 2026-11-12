@@ -71,7 +71,7 @@ export default {
     'Unitree sells the G1 and the G1 EDU; the table gives both where they differ (joints, knee torque, arm load, warranty). The model shows the standard 23-joint body with plain hands.',
     'The part names and the two sensor models (Livox MID-360, Intel RealSense D435i) are from Unitree\'s own labelled picture of the G1.',
     'The body\'s proportions follow the published 1,320 × 450 × 200 mm and the 0.6 m of calf plus thigh; the split between thigh and shin, the arm lengths and where each motor sits are read from Unitree\'s pictures.',
-    'Body mirror: with hand control running and this robot open, choose "Mirror me". The camera then follows your body (not your hands): the robot raises the arm on the same side of the screen as yours and turns as you turn. Its legs move only when the camera can see yours.',
+    'Whole-body tracking: with hand control running and this robot open, choose "Track my whole body". The camera then follows your body (not your hands): head (up, down, left, right, tilt), arms, wrists, the lean and twist of your body, legs and feet, and where you step. The panel lights up each region the camera can see; what it cannot see stands still.',
     'Unitree asks users to keep a safe distance from the real robot and calls it a civilian robot; it gives no ingress-protection rating, so the catalogue lists it as an indoor robot.',
   ],
   sources: ['ut-g1', 'ut-g1-parts'],
@@ -84,7 +84,7 @@ export default {
       hipL: { parent: 'pelvis', at: AT.hipL }, kneeL: { parent: 'hipL', at: AT.kneeL }, ankleL: { parent: 'kneeL', at: AT.ankleL },
       hipR: { parent: 'pelvis', at: AT.hipR }, kneeR: { parent: 'hipR', at: AT.kneeR }, ankleR: { parent: 'kneeR', at: AT.ankleR },
     },
-    thigh: THIGH, shin: SHIN,
+    thigh: THIGH, shin: SHIN, trunk: AT.shoulderL[1] - AT.hipL[1],
   },
 
   parts: [

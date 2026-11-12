@@ -436,7 +436,7 @@ export class Stage {
     this._disposeAlertFx();
     this.alert = null; // the parts it pointed at are gone; setAlert again if it should carry on
     this.def = def;
-    this._rig = null; this.poseT = null; this._poseW = 0; this._yaw = 0; this._lift = 0;
+    this._rig = null; this.poseT = null; this._poseW = 0; this._yaw = 0; this._lift = 0; this._mx = 0; this._mz = 0;
     const tone = this.look === 'studio' && def.studio ? def.studio : def;
     this._setAccent(tone.accent, tone.accent2);
     this.baseY = this.look === 'studio' ? 0 : def.hover;
@@ -932,7 +932,7 @@ export class Stage {
     const bob = this.look === 'studio' ? 0 : Math.sin(t * 0.9) * 0.05 * (1 - e) * (this.reduced ? 0 : 1);
     this.robot.position.y = this.baseY + bob;
     this._guideFx(dt, t);
-    if (this._rig) { this.robot.position.y += this._lift; this.robot.rotation.y = this._yaw; }
+    if (this._rig) { this.robot.position.y += this._lift; this.robot.rotation.y = this._yaw; this.robot.position.x = this._mx; this.robot.position.z += this._mz; }
     this.robot.updateMatrixWorld(true);
 
     this._visuals(dt);
@@ -1044,7 +1044,10 @@ export class Stage {
     for (const p of this.parts) p.joint = p.def.joint ? J[p.def.joint] : null;
   }
 
-  /** Pose the open robot, or pass null to let it stand at rest. Ignored by robots without joints. */
+  /**
+   * Pose the open robot, or pass null to let it stand at rest. Ignored by robots without joints.
+   * `pose.move` ({ x, z } in the robot's units) steps the robot sideways and toward the viewer; the view stays put.
+   */
   setPose(pose) { this.poseT = this._rig ? pose : null; }
 
   get posable() { return !!this._rig; }
@@ -1061,6 +1064,9 @@ export class Stage {
     dy = Math.atan2(Math.sin(dy), Math.cos(dy)); // turn the short way round
     this._yaw += dy * k;
     this._lift += ((T ? (T.lift || 0) * w : 0) - this._lift) * k;
+    const mv = T && T.move, km = this.reduced ? 1 : damp(dt, 7); // a step is slower than a limb
+    this._mx += ((mv ? mv.x * w : 0) - this._mx) * km;
+    this._mz += ((mv ? mv.z * w : 0) - this._mz) * km;
     for (const j of R.order) {
       const tq = T && T.q[j.name];
       if (tq && w > 0) { _q.identity().slerp(tq, w); j.q.slerp(_q, k); }
@@ -1175,6 +1181,7 @@ export class Stage {
           _w.copy(p.cornersJ[ci]).applyQuaternion(jt.q).add(jt.pos).addScaledVector(p.ex, p.t);
           _w.applyMatrix4(this.robot.matrixWorld);
         } else _w.copy(k).add(o);
+        if (this._mx || this._mz) { _w.x -= this._mx; _w.z -= this._mz; } // the robot steps across the view; the view does not follow
         const x = _w.dot(right), y = _w.dot(up), z = _w.dot(f);
         const q = P[n] || (P[n] = [0, 0, 0]);
         q[0] = x; q[1] = y; q[2] = z; n++;
